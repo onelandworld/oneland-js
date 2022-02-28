@@ -1,8 +1,9 @@
 {
   "name": "@onelandworld/oneland-js",
-  "version": "0.0.1",
-  "description": "OneLand JS",
-  "main": "src/index.ts",
+  "version": "0.0.2",
+  "description": "oneland js",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "scripts": {
     "build": "gts clean && tsc",
     "test": "exit 0",

@@ -1,3 +1,30 @@
+# Usage
+
+## Create `.npmrc` for your project
+
+```
+@onelandworld:registry=https://npm.pkg.github.com
+```
+
+## Authenticate to Github Package
+
+### Github workflows
+
+Just use `GITHUB_TOKEN`
+
+### Local
+
+Create a Github personal access token with `read:packages` permission, and add to your `~/.npmrc`.
+```
+$ echo "//npm.pkg.github.com/:_authToken=<your access token>" >> ~/.npmrc
+```
+
+## Add dependency
+
+```sh
+$ yarn add @onelandworld/oneland-js
+```
+
 # Development
 
 ## Install Dependencies
@@ -20,8 +47,25 @@ $ npm run lint
 $ npm run fix
 ```
 
-### Build
+# Develop and Use Locally (Recommended)
+
+## Create global symbol link
 
 ```sh
-$ npm run build
+$ cd <oneland-js>
+$ npm link
+```
+
+## Use local package
+
+```sh
+$ cd <other project>
+$ npm link @onelandworld/oneland-js --save
+```
+
+## Remove global symbol link
+
+```sh
+$ npm ls --global @onelandworld/oneland-js
+$ npm rm --global @onelandworld/oneland-js
 ```

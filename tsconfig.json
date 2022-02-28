@@ -5,7 +5,9 @@
     "skipLibCheck": true,
     "noImplicitAny": true,
     "outDir": "./dist",
-    "sourceMap": true
+    "declaration": true,
+    "sourceMap": true,
+    "esModuleInterop": true
   },
   "types": ["mocha"],
   "include": ["./**/*.ts", "./**/*.js"],
