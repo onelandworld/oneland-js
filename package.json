@@ -1,0 +1,30 @@
+{
+  "name": "@onelandworld/oneland-js",
+  "version": "0.0.1",
+  "description": "OneLand JS",
+  "main": "src/index.ts",
+  "scripts": {
+    "build": "gts clean && tsc",
+    "test": "exit 0",
+    "lint": "gts lint",
+    "clean": "gts clean",
+    "compile": "tsc",
+    "fix": "gts fix"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:onelandworld/oneland-js.git"
+  },
+  "author": "maxmuncy",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^14.11.2",
+    "gts": "^3.1.0",
+    "ts-node": "^10.0.0",
+    "typescript": "^4.0.3"
+  },
+  "engines": {
+    "node": "16.13.2"
+  }
+}
