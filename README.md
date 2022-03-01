@@ -1,39 +1,10 @@
-# Usage
-
-## Create `.npmrc` for your project
-
-```
-@onelandworld:registry=https://npm.pkg.github.com
-```
-
-## Authenticate to Github Package
-
-### Github workflows
-
-Create a Github personal access token with `read:packages` permission, and use it in workflow.
-
-For example:
-
-```yml
-- name: Run install
-  run: |
-    npm config set //npm.pkg.github.com/:_authToken=${ONELAND_PACKAGES_NPM_AUTH_TOKEN}
-    npm i
-  env:
-    ONELAND_PACKAGES_NPM_AUTH_TOKEN: ${{ secrets.PAT_MAXM_READ_PACKAGES }}
-```
-
-### Local
-
-Create a Github personal access token with `read:packages` permission, and add to your `~/.npmrc`.
-```
-$ echo "//npm.pkg.github.com/:_authToken=<your access token>" >> ~/.npmrc
-```
-
-## Add dependency
+# Publish to npmjs
 
 ```sh
-$ yarn add @onelandworld/oneland-js
+$ yarn build
+$ npm login --registry=https://registry.npmjs.org/
+$ npm whoami
+$ npm publish --access public
 ```
 
 # Development
@@ -41,7 +12,7 @@ $ yarn add @onelandworld/oneland-js
 ## Install Dependencies
 
 ```sh
-$ npm ci
+$ yarn
 ```
 
 ## Build
@@ -49,13 +20,13 @@ $ npm ci
 ### Lint
 
 ```sh
-$ npm run lint
+$ yarn lint
 ```
 
 ### Auto fix lint errors
 
 ```sh
-$ npm run fix
+$ yarn fix
 ```
 
 # Develop and Use Locally (Recommended)
