@@ -1,5 +1,5 @@
 export class OneLandPort {
   public async ping() {
-    return 'Ok';
+    return 'OK';
   }
 }

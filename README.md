@@ -10,7 +10,18 @@
 
 ### Github workflows
 
-Just use `GITHUB_TOKEN`
+Create a Github personal access token with `read:packages` permission, and use it in workflow.
+
+For example:
+
+```yml
+- name: Run install
+  run: |
+    npm config set //npm.pkg.github.com/:_authToken=${ONELAND_PACKAGES_NPM_AUTH_TOKEN}
+    npm i
+  env:
+    ONELAND_PACKAGES_NPM_AUTH_TOKEN: ${{ secrets.PAT_MAXM_READ_PACKAGES }}
+```
 
 ### Local
 
