@@ -1,0 +1,35 @@
+export const deployed = {
+    'rinkeby': {
+        'Migrations': '0xA174D789eAb094b71D3Dba224EbdCF4C7311aB83',
+        'WyvernAtomicizer': '0x5E6E0075B9600E74AA0214c6F3b98235922e750A',
+        'WyvernRegistry': '0xa16Cd54E5E111ad32a0e9065F7C85984fE2fE968',
+        'WyvernExchange': '0x3D7FA4926b8306714A62eA41fCf241a793AA255a',
+        'WyvernStatic': '0x5B0832f61b4951963C5A9bB60b209ca4f3BCa8A4',
+        'TestERC20': '0x9aEEfb174928ac0c5b70949808Ec6E30ef4D439B',
+        'TestERC721': '0xa50bd876df59C35BE8fCe3FEd239DCe8C378a25f',
+        'StaticMarket': '0x740A993dd3C2232ABC2F2926545FaB2955a20E71',
+    },
+    'mainnet': {
+        'Migrations': '0x2020bc01065f82f1ACfAcD93671FF339bD65f322',
+        'WyvernAtomicizer': '0x63A983B3cbb719024d4203A636118Ea899d14d2a',
+        'WyvernStatic': '0x32Ce15F191aFD85072A594f388A78D3f6Bf6a9Bf',
+        'WyvernRegistry': '0xa5409ec958C83C3f309868babACA7c86DCB077c1',
+        'WyvernExchange': '0xd7CA74fF003c90E62505D21ec7Dac36bCfD9F6f2',
+    },
+    'mumbai': {
+        'Migrations': '0x6C9497bf4700c296F5Cd7031158501410040aA8A',
+        'WyvernAtomicizer': '0x9f0B24C426327ff824f999c0507943c8bda9F674',
+        'WyvernStatic': '0x2A20127Bf55aA3fbEe8E8831CCF012d1dF470B74',
+        'WyvernRegistry': '0x2a9BbBd5db91a30C2b295Bd07b8122036236BF13',
+        'WyvernExchange': '0xE4249006405365590882D4e6b3c23746252c4d1d',
+        'StaticMarket': '0xCaB85B878296B9F00c12682b2C14c281A7DBb6a5',
+    },
+    'baobab': {
+        'Migrations': '0x294C849D78cc08457bdc3278f751789e2B2BEf5c',
+        'WyvernAtomicizer': '0xe6c0ee1209a1Dbe4A406799e9D63f1Be606CfE3E',
+        'WyvernStatic': '0xd074EbBf82806095eC784e7E00C2a44196868C4F',
+        'StaticMarket': '0xa86AF1A5bB8AF2418500AAbdacB9B7d2217F91A5',
+        'WyvernRegistry': '0x23d0a64aF6987A2d536B9c3bA72FAAf66c9D73b6',
+        'WyvernExchange': '0xDBA99cE125C6140dC4b30D48cBdDc57Bc67dc2d1',
+    },
+};
