@@ -1,3 +1,3 @@
-import {OneLandPort} from './onelandport';
+import {LandPort} from './landport';
 
-export {OneLandPort};
+export {LandPort};

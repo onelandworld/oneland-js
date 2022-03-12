@@ -35,19 +35,21 @@ $ yarn fix
 
 ```sh
 $ cd <oneland-js>
-$ npm link
+$ yarn link
 ```
 
 ## Use local package
 
 ```sh
 $ cd <other project>
-$ npm link @onelandworld/oneland-js --save
+$ yarn link @onelandworld/oneland-js
 ```
 
 ## Remove global symbol link
 
 ```sh
-$ npm ls --global @onelandworld/oneland-js
-$ npm rm --global @onelandworld/oneland-js
+# Under oneland-js directory
+$ yarn unlink
+# Under the project that uses oneland-js locally
+$ yarn unlink @onelandworld/oneland-js
 ```
