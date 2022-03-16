@@ -15,6 +15,16 @@ $ npm publish --access public
 $ yarn
 ```
 
+## Steps to generate TypeChain ABI classes
+```sh
+$ yarn add --dev typechain
+$ yarn add --dev @typechain/ethers-v5
+
+Copy ABI definitions from etherscan, and put to src/abi/**/*.abi.json
+
+$ npx typechain --target ethers-v5 --out-dir src/typechain --show-stack-traces src/abi/**/*.abi.json
+```
+
 ## Build
 
 ### Lint
