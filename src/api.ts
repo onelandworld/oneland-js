@@ -1,10 +1,8 @@
 import * as _ from 'lodash';
-import {SandboxLand} from './contracts';
 import {
   OneLandAPIConfig,
   Network,
   OneLandAsset,
-  OneLandAccount,
   AssetContractType,
   WyvernSchemaName,
   OneLandFungibleTokenQuery,
@@ -50,7 +48,7 @@ export class OneLandAPI {
       tokenId: tokenId || '',
       assetContract: {
         name: 'Sandbox Land',
-        address: SandboxLand.getContractAddress(this._network),
+        address: _.get(deployed, `${this._network}.SandboxLand`),
         type: AssetContractType.NonFungible,
         schemaName: WyvernSchemaName.ERC721,
       },

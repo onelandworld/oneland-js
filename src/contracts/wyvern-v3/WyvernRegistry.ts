@@ -28,7 +28,7 @@ export class WyvernRegistry {
   ): Promise<string | null> {
     let proxyAddress = await wyvernRegistryAbi.proxies(accountAddress);
 
-    if (_.isEmpty(proxyAddress) || proxyAddress == NULL_ADDRESS) {
+    if (_.isEmpty(proxyAddress) || proxyAddress === NULL_ADDRESS) {
       if (retries > 0) {
         await delay(1000);
         return await WyvernRegistry.getProxy(

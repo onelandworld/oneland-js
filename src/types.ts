@@ -39,17 +39,55 @@ export interface WyvernOrder {
   staticTarget: string;
   staticSelector: string;
   staticExtradata: string;
+  paymentToken: string;
   maximumFill: BigNumber;
   listingTime: BigNumber;
   expirationTime: BigNumber;
   salt: BigNumber;
 }
 
+export interface WyvernNFTAsset {
+  id: string;
+  address: string;
+}
+export interface WyvernFTAsset {
+  id?: string;
+  address: string;
+  quantity: string;
+}
+export type WyvernAsset = WyvernNFTAsset | WyvernFTAsset;
+
+// Abstractions over Wyvern assets for bundles
+export interface WyvernBundle {
+  assets: WyvernAsset[];
+  schemas: WyvernSchemaName[];
+  name?: string;
+  description?: string;
+  external_link?: string;
+}
+
+interface ExchangeMetadataForAsset {
+  asset: WyvernAsset;
+  schema: WyvernSchemaName;
+  referrerAddress?: string;
+}
+
+interface ExchangeMetadataForBundle {
+  bundle: WyvernBundle;
+  referrerAddress?: string;
+}
+
+export type ExchangeMetadata =
+  | ExchangeMetadataForAsset
+  | ExchangeMetadataForBundle;
+
 export interface UnhashedOrder extends WyvernOrder {
   feeMethod: FeeMethod;
   side: OrderSide;
   saleKind: SaleKind;
   quantity: BigNumber;
+
+  metadata: ExchangeMetadata;
 }
 
 export interface UnsignedOrder extends UnhashedOrder {
@@ -120,7 +158,7 @@ export enum WyvernSchemaName {
   ERC721 = 'ERC721',
   ERC721v3 = 'ERC721v3',
   ERC1155 = 'ERC1155',
-  ENSShortNameAuction = 'ENSShortNameAuction',
+  // ENSShortNameAuction = 'ENSShortNameAuction',
 }
 
 /**

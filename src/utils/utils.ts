@@ -1,10 +1,40 @@
 import {ethers, BigNumber} from 'ethers';
+/* eslint-disable node/no-extraneous-import */
+import {
+  TypedDataSigner,
+  TypedDataDomain,
+  TypedDataField,
+} from '@ethersproject/abstract-signer';
 import {BigNumber as BigNumberJS} from 'bignumber.js';
 import {
   MAX_EXPIRATION_MONTHS,
   NULL_ADDRESS,
   MAX_DIGITS_IN_UNSIGNED_256_INT,
+  ZERO_BYTES32,
 } from '../constants';
+import {
+  Asset,
+  WyvernAsset,
+  WyvernSchemaName,
+  UnhashedOrder,
+  ECSignature,
+} from '../types';
+import {eip712} from './eip712';
+
+export const eip712Order = {
+  name: 'Order',
+  fields: [
+    {name: 'registry', type: 'address'},
+    {name: 'maker', type: 'address'},
+    {name: 'staticTarget', type: 'address'},
+    {name: 'staticSelector', type: 'bytes4'},
+    {name: 'staticExtradata', type: 'bytes'},
+    {name: 'maximumFill', type: 'uint256'},
+    {name: 'listingTime', type: 'uint256'},
+    {name: 'expirationTime', type: 'uint256'},
+    {name: 'salt', type: 'uint256'},
+  ],
+};
 
 /**
  * The longest time that an order is valid for is six months from the current date
@@ -32,7 +62,7 @@ export function validateAndFormatWalletAddress(address: string): string {
   if (!ethers.utils.isAddress(address)) {
     throw new Error('Invalid wallet address');
   }
-  if (address == NULL_ADDRESS) {
+  if (address === NULL_ADDRESS) {
     throw new Error('Wallet cannot be the null address');
   }
   return address.toLowerCase();
@@ -68,4 +98,105 @@ export function generatePseudoRandomSalt(): BigNumber {
   const factor = new BigNumberJS(10).pow(MAX_DIGITS_IN_UNSIGNED_256_INT - 1);
   const salt = randomNumber.times(factor).integerValue();
   return BigNumber.from(salt.toFixed());
+}
+
+/**
+ * Get the Wyvern representation of a fungible asset
+ * @param asset The asset to trade
+ * @param quantity The number of items to trade
+ */
+export function getWyvernAsset(
+  asset: Asset,
+  quantity = BigNumber.from(1)
+): WyvernAsset {
+  const wyvernSchema = asset.schemaName as WyvernSchemaName;
+  const tokenId = asset.tokenId !== null ? asset.tokenId.toString() : undefined;
+
+  switch (wyvernSchema) {
+    case WyvernSchemaName.ERC20:
+      return {
+        address: asset.tokenAddress.toLowerCase(),
+        quantity: quantity.toString(),
+      };
+    case WyvernSchemaName.ERC721:
+    case WyvernSchemaName.ERC721v3:
+    case WyvernSchemaName.ERC1155:
+      return {
+        id: tokenId,
+        address: asset.tokenAddress.toLowerCase(),
+      };
+  }
+}
+
+export const domainToSign = (exchange, chainId) => {
+  return {
+    name: 'Wyvern Exchange',
+    version: '3.1',
+    chainId,
+    verifyingContract: exchange,
+  };
+};
+
+export const structToSign = (order, exchange, chainId) => {
+  return {
+    name: eip712Order.name,
+    fields: eip712Order.fields,
+    domain: {
+      name: 'Wyvern Exchange',
+      version: '3.1',
+      chainId,
+      verifyingContract: exchange,
+    },
+    data: order,
+  };
+};
+
+export const hashOrder = (order: any) => {
+  console.log('hashOrder', order);
+  return (
+    '0x' +
+    eip712
+      .structHash(eip712Order.name, eip712Order.fields, order)
+      .toString('hex')
+  );
+};
+
+export const parseSig = (bytes: any) => {
+  bytes = bytes.substr(2);
+  const r = '0x' + bytes.slice(0, 64);
+  const s = '0x' + bytes.slice(64, 128);
+  const v = parseInt('0x' + bytes.slice(128, 130), 16);
+  return {v, r, s};
+};
+
+/**
+ * Get the non-prefixed hash for the order
+ * (Fixes a Wyvern typescript issue and casing issue)
+ * @param order order to hash
+ */
+export function getOrderHash(order: UnhashedOrder) {
+  const orderWithStringTypes = {
+    ...order,
+    maker: order.maker.toLowerCase(),
+    side: order.side.toString(),
+    saleKind: order.saleKind.toString(),
+    feeMethod: order.feeMethod.toString(),
+  };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return hashOrder(orderWithStringTypes as any);
+}
+
+/**
+ * Sign messages using web3 signTypedData signatures
+ * @param message message to sign
+ * @returns A signature if provider can sign, otherwise null
+ */
+export async function signTypedDataAsync(
+  signer: TypedDataSigner,
+  domain: TypedDataDomain,
+  types: Record<string, Array<TypedDataField>>,
+  value: Record<string, any>
+): Promise<ECSignature> {
+  const signature = await signer._signTypedData(domain, types, value);
+  return parseSig(signature);
 }

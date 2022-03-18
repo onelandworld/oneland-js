@@ -8,11 +8,20 @@ import {
   OneLandAPIConfig,
   FeeMethod,
   ComputedFees,
+  WyvernSchemaName,
+  WyvernAsset,
+  WyvernNFTAsset,
+  WyvernFTAsset,
+  OneLandAsset,
+  UnsignedOrder,
+  ECSignature,
 } from './types';
 import {
   WyvernRegistryAbi,
   WyvernExchangeAbi,
   WyvernStaticAbi,
+  ERC20Abi__factory,
+  ERC721Abi__factory,
 } from './typechain';
 import {WyvernRegistry, WyvernExchange, WyvernStatic} from './contracts';
 import {
@@ -20,9 +29,17 @@ import {
   validateAndFormatWalletAddress,
   toBaseUnitAmount,
   generatePseudoRandomSalt,
+  getWyvernAsset,
+  getOrderHash,
+  domainToSign,
+  structToSign,
+  eip712Order,
+  signTypedDataAsync,
+  delay,
 } from './utils';
 import {
   NULL_ADDRESS,
+  MAX_UINT_256,
   MIN_EXPIRATION_MINUTES,
   MAX_EXPIRATION_MONTHS,
   ORDER_MATCHING_LATENCY_SECONDS,
@@ -34,19 +51,20 @@ import {
   ONELAND_SELLER_BOUNTY_BASIS_POINTS,
 } from './constants';
 import {OneLandAPI} from './api';
-import {OneLandAsset} from '.';
 
 export class LandPort {
   private _network: Network;
-  private _provider: ethers.providers.Provider;
+  private _provider: ethers.providers.Web3Provider;
   private readonly api: OneLandAPI;
   private _wyvernRegistryAbi: WyvernRegistryAbi;
   private _wyvernExchangeAbi: WyvernExchangeAbi;
   private _wyvernStaticAbi: WyvernStaticAbi;
+  private logger: (arg: string) => void;
 
   constructor(
-    provider: ethers.providers.Provider,
-    apiConfig: OneLandAPIConfig
+    provider: ethers.providers.Web3Provider,
+    apiConfig: OneLandAPIConfig,
+    logger?: (arg: string) => void
   ) {
     apiConfig.network = apiConfig.network || Network.Main;
     this._provider = provider;
@@ -64,6 +82,9 @@ export class LandPort {
       this._network,
       this._provider
     );
+
+    // Debugging: default to nothing
+    this.logger = logger || ((arg: string) => arg);
   }
 
   public async createSellOrder({
@@ -75,7 +96,10 @@ export class LandPort {
     maximumFill = 1,
     listingTime,
     expirationTime = getMaxOrderExpirationTimestamp(),
+    waitForHighestBid = false,
+    englishAuctionReservePrice,
     paymentTokenAddress,
+    extraBountyBasisPoints = 0,
     buyerAddress,
     buyerEmail,
   }: {
@@ -87,10 +111,55 @@ export class LandPort {
     maximumFill?: number;
     listingTime?: number;
     expirationTime?: number;
+    englishAuctionReservePrice?: number;
+    waitForHighestBid?: boolean;
     paymentTokenAddress?: string;
+    extraBountyBasisPoints?: number;
     buyerAddress?: string;
     buyerEmail?: string;
-  }) {}
+  }) {
+    const order = await this._makeSellOrder({
+      asset,
+      quantity,
+      maximumFill,
+      accountAddress,
+      startAmount,
+      endAmount,
+      listingTime,
+      expirationTime,
+      waitForHighestBid,
+      englishAuctionReservePrice,
+      paymentTokenAddress: paymentTokenAddress || NULL_ADDRESS,
+      extraBountyBasisPoints,
+      buyerAddress: buyerAddress || NULL_ADDRESS,
+    });
+
+    await this._sellOrderValidationAndApprovals({order, accountAddress});
+
+    if (buyerEmail) {
+      // TODO:
+    }
+
+    const hashedOrder = {
+      ...order,
+      hash: getOrderHash(order),
+    };
+    let signature;
+    try {
+      signature = await this.authorizeOrder(hashedOrder);
+    } catch (error) {
+      console.error(error);
+      throw new Error('You declined to authorize your auction');
+    }
+
+    const orderWithSignature = {
+      ...hashedOrder,
+      ...signature,
+    };
+
+    // TODO: post Order to backend service
+    return orderWithSignature;
+  }
 
   public async _makeSellOrder({
     asset,
@@ -125,6 +194,7 @@ export class LandPort {
     const quantityBN = BigNumber.from(quantity);
     const maximumFillBN = BigNumber.from(maximumFill);
 
+    const wyAsset = getWyvernAsset(asset, quantityBN);
     const oneLandAsset = await this.api.getAsset(asset);
 
     const {
@@ -138,7 +208,7 @@ export class LandPort {
     });
 
     const orderSaleKind =
-      endAmount != null && endAmount !== startAmount
+      endAmount !== null && endAmount !== startAmount
         ? SaleKind.DutchAuction
         : SaleKind.FixedPrice;
 
@@ -203,13 +273,466 @@ export class LandPort {
       staticTarget,
       staticSelector,
       staticExtradata,
-      // paymentToken,
+      paymentToken,
       // basePrice,
       // extra,
       listingTime: times.listingTime,
       expirationTime: times.expirationTime,
       salt: generatePseudoRandomSalt(),
+      metadata: {
+        asset: wyAsset,
+        schema: asset.schemaName as WyvernSchemaName,
+      },
     };
+  }
+
+  // Throws
+  public async _sellOrderValidationAndApprovals({
+    order,
+    accountAddress,
+  }: {
+    order: UnhashedOrder;
+    accountAddress: string;
+  }) {
+    const wyAssets =
+      'bundle' in order.metadata
+        ? order.metadata.bundle.assets
+        : order.metadata.asset
+        ? [order.metadata.asset]
+        : [];
+    const schemaNames =
+      'bundle' in order.metadata && 'schemas' in order.metadata.bundle
+        ? order.metadata.bundle.schemas
+        : 'schema' in order.metadata
+        ? [order.metadata.schema]
+        : [];
+    const tokenAddress = order.paymentToken;
+
+    await this._approveAll({
+      schemaNames,
+      wyAssets,
+      accountAddress,
+    });
+
+    // For fulfilling bids,
+    // need to approve access to fungible token because of the way fees are paid
+    // This can be done at a higher level to show UI
+    if (tokenAddress !== NULL_ADDRESS) {
+      const proxyAddress = await WyvernRegistry.getProxy(
+        this._wyvernRegistryAbi,
+        accountAddress
+      );
+      await this.approveFungibleToken({
+        accountAddress,
+        tokenAddress,
+        minimumAmount: order.quantity,
+        proxyAddress,
+      });
+    }
+
+    // Check sell parameters
+    const sellValid = await this._wyvernExchangeAbi.validateOrderParameters_(
+      order.registry,
+      order.maker,
+      order.staticTarget,
+      order.staticSelector,
+      order.staticExtradata,
+      order.maximumFill,
+      order.listingTime,
+      order.expirationTime,
+      order.salt
+    );
+
+    if (!sellValid) {
+      console.error(order);
+      throw new Error(
+        "Failed to validate sell order parameters. Make sure you're on the right network!"
+      );
+    }
+  }
+
+  public async _approveAll({
+    schemaNames,
+    wyAssets,
+    accountAddress,
+    proxyAddress,
+  }: {
+    schemaNames: WyvernSchemaName[];
+    wyAssets: WyvernAsset[];
+    accountAddress: string;
+    proxyAddress?: string;
+  }) {
+    proxyAddress =
+      proxyAddress ||
+      (await WyvernRegistry.getProxy(
+        this._wyvernRegistryAbi,
+        accountAddress,
+        0
+      )) ||
+      undefined;
+
+    if (!proxyAddress) {
+      proxyAddress = await WyvernRegistry.registerProxy(
+        this._wyvernRegistryAbi,
+        accountAddress
+      );
+    }
+    const contractsWithApproveAll: Set<string> = new Set();
+
+    return Promise.all(
+      wyAssets.map(async (wyAsset, i) => {
+        const schemaName = schemaNames[i];
+        // Verify that the taker owns the asset
+        let isOwner;
+        try {
+          isOwner = await this._ownsAssetOnChain({
+            accountAddress,
+            proxyAddress,
+            wyAsset,
+            schemaName,
+          });
+        } catch (error) {
+          // let it through for assets we don't support yet
+          isOwner = true;
+        }
+        if (!isOwner) {
+          const minAmount = 'quantity' in wyAsset ? wyAsset.quantity : 1;
+          console.error(
+            `Failed on-chain ownership check: ${accountAddress} on ${schemaName}:`,
+            wyAsset
+          );
+          throw new Error(
+            `You don't own enough to do that (${minAmount} base units of ${
+              wyAsset.address
+            }${wyAsset.id ? ' token ' + wyAsset.id : ''})`
+          );
+        }
+        switch (schemaName) {
+          case WyvernSchemaName.ERC721:
+          case WyvernSchemaName.ERC721v3:
+          case WyvernSchemaName.ERC1155:
+            // Handle NFTs and SFTs
+            // eslint-disable-next-line no-case-declarations
+            const wyNFTAsset = wyAsset as WyvernNFTAsset;
+            return await this.approveSemiOrNonFungibleToken({
+              tokenId: wyNFTAsset.id.toString(),
+              tokenAddress: wyNFTAsset.address,
+              accountAddress,
+              proxyAddress,
+              schemaName,
+              skipApproveAllIfTokenAddressIn: contractsWithApproveAll,
+            });
+          case WyvernSchemaName.ERC20:
+            // Handle FTs
+            // eslint-disable-next-line no-case-declarations
+            const wyFTAsset = wyAsset as WyvernFTAsset;
+            if (contractsWithApproveAll.has(wyFTAsset.address)) {
+              // Return null to indicate no tx occurred
+              return null;
+            }
+            contractsWithApproveAll.add(wyFTAsset.address);
+            return await this.approveFungibleToken({
+              tokenAddress: wyFTAsset.address,
+              accountAddress,
+              proxyAddress,
+            });
+        }
+      })
+    );
+  }
+
+  /**
+   * Generate the signature for authorizing an order
+   * @param order Unsigned wyvern order
+   * @returns order signature in the form of v, r, s, also an optional nonce
+   */
+  public async authorizeOrder(
+    order: UnsignedOrder,
+    signerAddress?: string
+  ): Promise<(ECSignature & {nonce?: number}) | null> {
+    signerAddress = signerAddress || order.maker;
+
+    // We need to manually specify each field because OS orders can contain unrelated data
+    const orderForSigning = {
+      maker: order.maker,
+      registry: order.registry,
+      staticTarget: order.staticTarget,
+      staticSelector: order.staticSelector,
+      staticExtradata: order.staticExtradata,
+      maximumFill: order.maximumFill.toString(),
+      listingTime: order.listingTime.toString(),
+      expirationTime: order.expirationTime.toString(),
+      salt: order.salt.toString(),
+    };
+
+    const str = structToSign(
+      order,
+      order.exchange,
+      this._network === Network.Main ? 1 : 4
+    );
+    const domain = domainToSign(
+      order.exchange,
+      this._network === Network.Main ? 1 : 4
+    );
+    const fields = {
+      Order: eip712Order.fields,
+    };
+    const value = {
+      data: order,
+    };
+    // const message = {
+    //   types: {
+    //     EIP712Domain: eip712.eip712Domain.fields,
+    //     Order: eip712Order.fields
+    //   },
+    //   domain: str.domain,
+    //   primaryType: 'Order',
+    //   message: order
+    // };
+
+    const ecSignature = await signTypedDataAsync(
+      this._provider.getSigner(),
+      domain,
+      fields,
+      value
+      // this.web3,
+      // message,
+      // signerAddress
+    );
+    return {...ecSignature};
+  }
+
+  /**
+   * Check if an account, or its proxy, owns an asset on-chain
+   * @param accountAddress Account address for the wallet
+   * @param proxyAddress Proxy address for the account
+   * @param wyAsset asset to check. If fungible, the `quantity` attribute will be the minimum amount to own
+   * @param schemaName WyvernSchemaName for the asset
+   */
+  public async _ownsAssetOnChain({
+    accountAddress,
+    proxyAddress,
+    wyAsset,
+    schemaName,
+  }: {
+    accountAddress: string;
+    proxyAddress?: string | null;
+    wyAsset: WyvernAsset;
+    schemaName: WyvernSchemaName;
+  }): Promise<boolean> {
+    const asset: Asset = {
+      tokenId: wyAsset.id || null,
+      tokenAddress: wyAsset.address,
+      schemaName,
+    };
+
+    const minAmount = BigNumber.from(
+      'quantity' in wyAsset ? wyAsset.quantity : 1
+    );
+
+    const accountBalance = await this.getAssetBalance({
+      accountAddress,
+      asset,
+    });
+    if (accountBalance.gte(minAmount)) {
+      return true;
+    }
+
+    proxyAddress =
+      proxyAddress ||
+      (await WyvernRegistry.getProxy(this._wyvernRegistryAbi, accountAddress));
+    if (proxyAddress) {
+      const proxyBalance = await this.getAssetBalance({
+        accountAddress: proxyAddress,
+        asset,
+      });
+      if (proxyBalance.gte(minAmount)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * Get an account's balance of any Asset.
+   * @param param0 __namedParameters Object
+   * @param accountAddress Account address to check
+   * @param asset The Asset to check balance for
+   * @param retries How many times to retry if balance is 0
+   */
+  public async getAssetBalance(
+    {accountAddress, asset}: {accountAddress: string; asset: Asset},
+    retries = 1
+  ): Promise<BigNumber> {
+    const schema = asset.schemaName as WyvernSchemaName;
+    if (schema === WyvernSchemaName.ERC20) {
+      const erc20Abi = ERC20Abi__factory.connect(
+        asset.tokenAddress,
+        this._provider
+      );
+      const count = await erc20Abi.balanceOf(accountAddress);
+      return count;
+    } else if (
+      schema === WyvernSchemaName.ERC721 ||
+      schema === WyvernSchemaName.ERC721v3
+    ) {
+      const erc721Abi = ERC721Abi__factory.connect(
+        asset.tokenAddress,
+        this._provider
+      );
+      const count = await erc721Abi.balanceOf(accountAddress);
+      return count;
+    } else {
+      // TODO:
+    }
+
+    if (retries <= 0) {
+      throw new Error('Unable to get current owner from smart contract');
+    } else {
+      await delay(500);
+      // Recursively check owner again
+      return await this.getAssetBalance({accountAddress, asset}, retries - 1);
+    }
+  }
+
+  /**
+   * Approve a non-fungible token for use in trades.
+   * Requires an account to be initialized first.
+   * Called internally, but exposed for dev flexibility.
+   * Checks to see if already approved, first. Then tries different approval methods from best to worst.
+   * @param param0 __namedParameters Object
+   * @param tokenId Token id to approve, but only used if approve-all isn't
+   *  supported by the token contract
+   * @param tokenAddress The contract address of the token being approved
+   * @param accountAddress The user's wallet address
+   * @param proxyAddress Address of the user's proxy contract. If not provided,
+   *  will attempt to fetch it from Wyvern.
+   * @param skipApproveAllIfTokenAddressIn an optional list of token addresses that, if a token is approve-all type, will skip approval
+   * @param schemaName The Wyvern schema name corresponding to the asset type
+   * @returns Transaction hash if a new transaction was created, otherwise null
+   */
+  public async approveSemiOrNonFungibleToken({
+    tokenId,
+    tokenAddress,
+    accountAddress,
+    proxyAddress,
+    skipApproveAllIfTokenAddressIn = new Set(),
+    schemaName = WyvernSchemaName.ERC721,
+  }: {
+    tokenId: string;
+    tokenAddress: string;
+    accountAddress: string;
+    proxyAddress?: string;
+    skipApproveAllIfTokenAddressIn?: Set<string>;
+    schemaName?:
+      | WyvernSchemaName.ERC721
+      | WyvernSchemaName.ERC721v3
+      | WyvernSchemaName.ERC1155;
+  }): Promise<string | null> {
+    if (!proxyAddress) {
+      proxyAddress =
+        (await WyvernRegistry.getProxy(
+          this._wyvernRegistryAbi,
+          accountAddress
+        )) || undefined;
+      if (!proxyAddress) {
+        throw new Error('Uninitialized account');
+      }
+    }
+
+    // TODO: Handle ERC1155 approval
+    const erc721Abi = ERC721Abi__factory.connect(tokenAddress, this._provider);
+    const isApprovedForAll = await erc721Abi.isApprovedForAll(
+      accountAddress,
+      proxyAddress
+    );
+
+    if (isApprovedForAll) {
+      // Supports ApproveAll
+      this.logger('Already approved proxy for all tokens');
+      return null;
+    }
+
+    // Suppose `ApproveAll` is supported
+    if (skipApproveAllIfTokenAddressIn.has(tokenAddress)) {
+      this.logger(
+        'Already approving proxy for all tokens in another transaction'
+      );
+      return null;
+    }
+    try {
+      const transaction = await erc721Abi.setApprovalForAll(proxyAddress, true);
+      await transaction.wait();
+      skipApproveAllIfTokenAddressIn.add(tokenAddress);
+      return transaction.hash;
+    } catch (error) {
+      console.error(error);
+      this.logger(
+        'Failed to get permission to approve all these tokens for trading. Trying to approve one.'
+      );
+    }
+
+    // May not support ApproveAll (ERC721 v1 or v2)
+    this.logger('Contract may not support Approve All');
+    try {
+      const transaction = await erc721Abi.approve(proxyAddress, tokenId);
+      await transaction.wait();
+      return transaction.hash;
+    } catch (error) {
+      console.error(error);
+      throw new Error(
+        "Couldn't get permission to approve the token for trading. Their contract might not be implemented correctly."
+      );
+    }
+  }
+
+  /**
+   * Approve a fungible token (e.g. W-ETH) for use in trades.
+   * Called internally, but exposed for dev flexibility.
+   * Checks to see if the minimum amount is already approved, first.
+   * @param param0 __namedParameters Object
+   * @param accountAddress The user's wallet address
+   * @param tokenAddress The contract address of the token being approved
+   * @param proxyAddress The user's proxy address. If unspecified, uses the Wyvern token transfer proxy address.
+   * @param minimumAmount The minimum amount needed to skip a transaction. Defaults to the max-integer.
+   * @returns Transaction hash if a new transaction occurred, otherwise null
+   */
+  public async approveFungibleToken({
+    accountAddress,
+    tokenAddress,
+    proxyAddress,
+    minimumAmount = MAX_UINT_256,
+  }: {
+    accountAddress: string;
+    tokenAddress: string;
+    proxyAddress?: string;
+    minimumAmount?: BigNumber;
+  }): Promise<string | null> {
+    proxyAddress =
+      proxyAddress ||
+      (await WyvernRegistry.getProxy(this._wyvernRegistryAbi, accountAddress));
+
+    const erc20Abi = ERC20Abi__factory.connect(tokenAddress, this._provider);
+    const approvedAmount = await erc20Abi.allowance(
+      accountAddress,
+      proxyAddress
+    );
+
+    if (approvedAmount.gte(minimumAmount)) {
+      this.logger('Already approved enough currency for trading');
+      return null;
+    }
+
+    this.logger(
+      `Not enough token approved for trade: ${approvedAmount} approved to transfer ${tokenAddress}`
+    );
+
+    const transaction = await erc20Abi.approve(proxyAddress, MAX_UINT_256, {
+      from: accountAddress,
+    });
+    await transaction.wait();
+    return transaction.hash;
   }
 
   /**
@@ -254,7 +777,7 @@ export class LandPort {
     if (waitingForBestCounterOrder && listingTimestamp) {
       throw new Error('Cannot schedule an English auction for the future.');
     }
-    if (parseInt(expirationTimestamp.toString()) != expirationTimestamp) {
+    if (parseInt(expirationTimestamp.toString()) !== expirationTimestamp) {
       throw new Error('Expiration timestamp must be a whole number of seconds');
     }
     if (expirationTimestamp > maxExpirationTimeStamp) {
@@ -320,16 +843,16 @@ export class LandPort {
     waitingForBestCounterOrder = false,
     englishAuctionReservePrice?: number
   ) {
-    const priceDiff = endAmount != null ? startAmount - endAmount : 0;
+    const priceDiff = endAmount ? startAmount - endAmount : 0;
     const paymentToken = tokenAddress.toLowerCase();
-    const isEther = tokenAddress == NULL_ADDRESS;
+    const isEther = tokenAddress === NULL_ADDRESS;
     const {tokens} = await this.api.getPaymentTokens({
       address: paymentToken,
     });
     const token = tokens[0];
 
     // Validation
-    if (isNaN(startAmount) || startAmount == null || startAmount < 0) {
+    if (isNaN(startAmount) || startAmount === null || startAmount < 0) {
       throw new Error('Starting price must be a number >= 0');
     }
     if (!isEther && !token) {
@@ -348,7 +871,7 @@ export class LandPort {
         'End price must be less than or equal to the start price.'
       );
     }
-    if (priceDiff > 0 && expirationTime == 0) {
+    if (priceDiff > 0 && expirationTime === 0) {
       throw new Error(
         'Expiration time must be set if order will change in price.'
       );
@@ -413,17 +936,17 @@ export class LandPort {
     let maxTotalBountyBPS = DEFAULT_MAX_BOUNTY;
 
     if (asset) {
-      onelandBuyerFeeBasisPoints = +asset.collection.onelandBuyerFeeBasisPoints;
+      onelandBuyerFeeBasisPoints = +asset.collection.onelandBuyerFeeBasisPoints || 0;
       onelandSellerFeeBasisPoints =
-        +asset.collection.onelandSellerFeeBasisPoints;
-      devBuyerFeeBasisPoints = +asset.collection.devBuyerFeeBasisPoints;
-      devSellerFeeBasisPoints = +asset.collection.devSellerFeeBasisPoints;
+        +asset.collection.onelandSellerFeeBasisPoints || 0;
+      devBuyerFeeBasisPoints = +asset.collection.devBuyerFeeBasisPoints || 0;
+      devSellerFeeBasisPoints = +asset.collection.devSellerFeeBasisPoints || 0;
 
       maxTotalBountyBPS = onelandSellerFeeBasisPoints;
     }
 
     // Compute transferFrom fees
-    if (side == OrderSide.Sell && asset) {
+    if (side === OrderSide.Sell && asset) {
       // Server-side knowledge
       transferFee = asset.transferFee
         ? BigNumber.from(asset.transferFee)
@@ -435,7 +958,7 @@ export class LandPort {
 
     // Compute bounty
     const sellerBountyBasisPoints =
-      side == OrderSide.Sell ? extraBountyBasisPoints : 0;
+      side === OrderSide.Sell ? extraBountyBasisPoints : 0;
 
     // Check that bounty is in range of the oneland fee
     const bountyTooLarge =
@@ -499,7 +1022,6 @@ export class LandPort {
     waitForHighestBid: boolean,
     sellerBountyBasisPoints = 0
   ) {
-    this._validateFees(totalBuyerFeeBasisPoints, totalSellerFeeBasisPoints);
     // Use buyer as the maker when it's an English auction, so Wyvern sets prices correctly
     const feeRecipient = waitForHighestBid
       ? NULL_ADDRESS
