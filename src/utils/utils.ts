@@ -1,16 +1,15 @@
-import {ethers, BigNumber} from 'ethers';
+import {ethers, BigNumber as EthBigNumber} from 'ethers';
 /* eslint-disable node/no-extraneous-import */
 import {
   TypedDataSigner,
   TypedDataDomain,
   TypedDataField,
 } from '@ethersproject/abstract-signer';
-import {BigNumber as BigNumberJS} from 'bignumber.js';
+import {BigNumber} from 'bignumber.js';
 import {
   MAX_EXPIRATION_MONTHS,
   NULL_ADDRESS,
-  MAX_DIGITS_IN_UNSIGNED_256_INT,
-  ZERO_BYTES32,
+  MAX_DIGITS_IN_UNSIGNED_256_INT
 } from '../constants';
 import {
   Asset,
@@ -80,8 +79,8 @@ export function toBaseUnitAmount(
   amount: BigNumber,
   decimals: number
 ): BigNumber {
-  const unit = BigNumber.from(10).pow(decimals);
-  const baseUnitAmount = amount.mul(unit);
+  const unit = new BigNumber(10).pow(decimals);
+  const baseUnitAmount = amount.times(unit);
   return baseUnitAmount;
 }
 
@@ -94,10 +93,10 @@ export function toBaseUnitAmount(
 export function generatePseudoRandomSalt(): BigNumber {
   // BigNumber.random returns a pseudo-random number between 0 & 1 with a passed in number of decimal places.
   // Source: https://mikemcl.github.io/bignumber.js/#random
-  const randomNumber = BigNumberJS.random(MAX_DIGITS_IN_UNSIGNED_256_INT);
-  const factor = new BigNumberJS(10).pow(MAX_DIGITS_IN_UNSIGNED_256_INT - 1);
+  const randomNumber = BigNumber.random(MAX_DIGITS_IN_UNSIGNED_256_INT);
+  const factor = new BigNumber(10).pow(MAX_DIGITS_IN_UNSIGNED_256_INT - 1);
   const salt = randomNumber.times(factor).integerValue();
-  return BigNumber.from(salt.toFixed());
+  return new BigNumber(salt.toFixed());
 }
 
 /**
@@ -107,7 +106,7 @@ export function generatePseudoRandomSalt(): BigNumber {
  */
 export function getWyvernAsset(
   asset: Asset,
-  quantity = BigNumber.from(1)
+  quantity = new BigNumber(1)
 ): WyvernAsset {
   const wyvernSchema = asset.schemaName as WyvernSchemaName;
   const tokenId = asset.tokenId !== null ? asset.tokenId.toString() : undefined;
@@ -199,4 +198,12 @@ export async function signTypedDataAsync(
 ): Promise<ECSignature> {
   const signature = await signer._signTypedData(domain, types, value);
   return parseSig(signature);
+}
+
+export function toEthBigNumber(num: BigNumber): EthBigNumber {
+  return EthBigNumber.from(num.toFixed());
+}
+
+export function fromEthBigNumber(num: EthBigNumber): BigNumber {
+  return new BigNumber(num.toHexString(), 16);
 }

@@ -1,10 +1,10 @@
-import {BigNumber} from 'ethers';
+import {BigNumber} from 'bignumber.js';
 
 export const NULL_ADDRESS = '0x0000000000000000000000000000000000000000';
 export const ZERO_BYTES32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
 export const MAX_DIGITS_IN_UNSIGNED_256_INT = 78;
-export const MAX_UINT_256 = BigNumber.from(2).pow(256).sub(1);
+export const MAX_UINT_256 = new BigNumber(2).pow(256).minus(1);
 
 export const MIN_EXPIRATION_MINUTES = 15;
 export const MAX_EXPIRATION_MONTHS = 6;

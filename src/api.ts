@@ -46,6 +46,7 @@ export class OneLandAPI {
     return {
       tokenAddress,
       tokenId: tokenId || '',
+      schemaName: WyvernSchemaName.ERC721,
       assetContract: {
         name: 'Sandbox Land',
         address: _.get(deployed, `${this._network}.SandboxLand`),

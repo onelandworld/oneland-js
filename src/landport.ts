@@ -1,4 +1,5 @@
-import {ethers, BigNumber} from 'ethers';
+import {ethers} from 'ethers';
+import {BigNumber} from 'bignumber.js';
 import {
   Network,
   UnhashedOrder,
@@ -35,6 +36,8 @@ import {
   structToSign,
   eip712Order,
   signTypedDataAsync,
+  toEthBigNumber,
+  fromEthBigNumber,
   delay,
 } from './utils';
 import {
@@ -133,6 +136,7 @@ export class LandPort {
       extraBountyBasisPoints,
       buyerAddress: buyerAddress || NULL_ADDRESS,
     });
+    console.log('after _makeSellOrder', order);
 
     await this._sellOrderValidationAndApprovals({order, accountAddress});
 
@@ -191,8 +195,8 @@ export class LandPort {
     buyerAddress: string;
   }): Promise<UnhashedOrder> {
     accountAddress = validateAndFormatWalletAddress(accountAddress);
-    const quantityBN = BigNumber.from(quantity);
-    const maximumFillBN = BigNumber.from(maximumFill);
+    const quantityBN = new BigNumber(quantity);
+    const maximumFillBN = new BigNumber(maximumFill);
 
     const wyAsset = getWyvernAsset(asset, quantityBN);
     const oneLandAsset = await this.api.getAsset(asset);
@@ -250,9 +254,11 @@ export class LandPort {
         useTxnOriginStaticCall: waitForHighestBid,
       });
 
+    const registry = WyvernRegistry.getContractAddress(this._network);
+    const exchange = WyvernExchange.getContractAddress(this._network);
     return {
-      registry: WyvernRegistry.getContractAddress(this._network),
-      exchange: WyvernExchange.getContractAddress(this._network),
+      registry,
+      exchange,
       maker: accountAddress,
       // taker: buyerAddress,
       quantity: quantityBN,
@@ -307,6 +313,8 @@ export class LandPort {
         ? [order.metadata.schema]
         : [];
     const tokenAddress = order.paymentToken;
+    console.log('order.metadata', order.metadata);
+    console.log('wyAssets', wyAssets);
 
     await this._approveAll({
       schemaNames,
@@ -337,10 +345,10 @@ export class LandPort {
       order.staticTarget,
       order.staticSelector,
       order.staticExtradata,
-      order.maximumFill,
-      order.listingTime,
-      order.expirationTime,
-      order.salt
+      toEthBigNumber(order.maximumFill),
+      toEthBigNumber(order.listingTime),
+      toEthBigNumber(order.expirationTime),
+      toEthBigNumber(order.salt)
     );
 
     if (!sellValid) {
@@ -370,6 +378,9 @@ export class LandPort {
         0
       )) ||
       undefined;
+    console.log(
+      `_approveAll, account: ${accountAddress}, proxy: ${proxyAddress}`
+    );
 
     if (!proxyAddress) {
       proxyAddress = await WyvernRegistry.registerProxy(
@@ -378,6 +389,8 @@ export class LandPort {
       );
     }
     const contractsWithApproveAll: Set<string> = new Set();
+
+    console.log(`_approveAll, wyAssets: ${wyAssets}`);
 
     return Promise.all(
       wyAssets.map(async (wyAsset, i) => {
@@ -526,7 +539,7 @@ export class LandPort {
       schemaName,
     };
 
-    const minAmount = BigNumber.from(
+    const minAmount = new BigNumber(
       'quantity' in wyAsset ? wyAsset.quantity : 1
     );
 
@@ -572,7 +585,7 @@ export class LandPort {
         this._provider
       );
       const count = await erc20Abi.balanceOf(accountAddress);
-      return count;
+      return fromEthBigNumber(count);
     } else if (
       schema === WyvernSchemaName.ERC721 ||
       schema === WyvernSchemaName.ERC721v3
@@ -582,7 +595,7 @@ export class LandPort {
         this._provider
       );
       const count = await erc721Abi.balanceOf(accountAddress);
-      return count;
+      return fromEthBigNumber(count);
     } else {
       // TODO:
     }
@@ -642,7 +655,10 @@ export class LandPort {
     }
 
     // TODO: Handle ERC1155 approval
-    const erc721Abi = ERC721Abi__factory.connect(tokenAddress, this._provider);
+    const erc721Abi = ERC721Abi__factory.connect(
+      tokenAddress,
+      this._provider.getSigner()
+    );
     const isApprovedForAll = await erc721Abi.isApprovedForAll(
       accountAddress,
       proxyAddress
@@ -662,6 +678,7 @@ export class LandPort {
       return null;
     }
     try {
+      console.log('Calling erc721Abi.setApprovalForAll...');
       const transaction = await erc721Abi.setApprovalForAll(proxyAddress, true);
       await transaction.wait();
       skipApproveAllIfTokenAddressIn.add(tokenAddress);
@@ -713,13 +730,16 @@ export class LandPort {
       proxyAddress ||
       (await WyvernRegistry.getProxy(this._wyvernRegistryAbi, accountAddress));
 
-    const erc20Abi = ERC20Abi__factory.connect(tokenAddress, this._provider);
+    const erc20Abi = ERC20Abi__factory.connect(
+      tokenAddress,
+      this._provider.getSigner()
+    );
     const approvedAmount = await erc20Abi.allowance(
       accountAddress,
       proxyAddress
     );
 
-    if (approvedAmount.gte(minimumAmount)) {
+    if (fromEthBigNumber(approvedAmount).gte(minimumAmount)) {
       this.logger('Already approved enough currency for trading');
       return null;
     }
@@ -728,9 +748,13 @@ export class LandPort {
       `Not enough token approved for trade: ${approvedAmount} approved to transfer ${tokenAddress}`
     );
 
-    const transaction = await erc20Abi.approve(proxyAddress, MAX_UINT_256, {
-      from: accountAddress,
-    });
+    const transaction = await erc20Abi.approve(
+      proxyAddress,
+      toEthBigNumber(MAX_UINT_256),
+      {
+        from: accountAddress,
+      }
+    );
     await transaction.wait();
     return transaction.hash;
   }
@@ -820,8 +844,8 @@ export class LandPort {
     }
 
     return {
-      listingTime: BigNumber.from(listingTimestamp),
-      expirationTime: BigNumber.from(expirationTimestamp),
+      listingTime: new BigNumber(listingTimestamp),
+      expirationTime: new BigNumber(expirationTimestamp),
     };
   }
 
@@ -890,17 +914,17 @@ export class LandPort {
 
     const basePrice = isEther
       ? ethers.utils.parseEther(startAmount.toString())
-      : toBaseUnitAmount(BigNumber.from(startAmount), token.decimals);
+      : toBaseUnitAmount(new BigNumber(startAmount), token.decimals);
 
     const extra = isEther
       ? ethers.utils.parseEther(priceDiff.toString())
-      : toBaseUnitAmount(BigNumber.from(priceDiff), token.decimals);
+      : toBaseUnitAmount(new BigNumber(priceDiff), token.decimals);
 
     const reservePrice = englishAuctionReservePrice
       ? isEther
         ? ethers.utils.parseEther(englishAuctionReservePrice.toString())
         : toBaseUnitAmount(
-            BigNumber.from(englishAuctionReservePrice),
+            new BigNumber(englishAuctionReservePrice),
             token.decimals
           )
       : undefined;
@@ -931,12 +955,13 @@ export class LandPort {
     let onelandSellerFeeBasisPoints = DEFAULT_SELLER_FEE_BASIS_POINTS;
     let devBuyerFeeBasisPoints = 0;
     let devSellerFeeBasisPoints = 0;
-    let transferFee = BigNumber.from(0);
+    let transferFee = new BigNumber(0);
     let transferFeeTokenAddress = null;
     let maxTotalBountyBPS = DEFAULT_MAX_BOUNTY;
 
     if (asset) {
-      onelandBuyerFeeBasisPoints = +asset.collection.onelandBuyerFeeBasisPoints || 0;
+      onelandBuyerFeeBasisPoints =
+        +asset.collection.onelandBuyerFeeBasisPoints || 0;
       onelandSellerFeeBasisPoints =
         +asset.collection.onelandSellerFeeBasisPoints || 0;
       devBuyerFeeBasisPoints = +asset.collection.devBuyerFeeBasisPoints || 0;
@@ -949,7 +974,7 @@ export class LandPort {
     if (side === OrderSide.Sell && asset) {
       // Server-side knowledge
       transferFee = asset.transferFee
-        ? BigNumber.from(asset.transferFee)
+        ? new BigNumber(asset.transferFee)
         : transferFee;
       transferFeeTokenAddress = asset.transferFeePaymentToken
         ? asset.transferFeePaymentToken.address
@@ -1030,18 +1055,18 @@ export class LandPort {
     // Swap maker/taker fees when it's an English auction,
     // since these sell orders are takers not makers
     const makerRelayerFee = waitForHighestBid
-      ? BigNumber.from(totalBuyerFeeBasisPoints)
-      : BigNumber.from(totalSellerFeeBasisPoints);
+      ? new BigNumber(totalBuyerFeeBasisPoints)
+      : new BigNumber(totalSellerFeeBasisPoints);
     const takerRelayerFee = waitForHighestBid
-      ? BigNumber.from(totalSellerFeeBasisPoints)
-      : BigNumber.from(totalBuyerFeeBasisPoints);
+      ? new BigNumber(totalSellerFeeBasisPoints)
+      : new BigNumber(totalBuyerFeeBasisPoints);
 
     return {
       makerRelayerFee,
       takerRelayerFee,
-      makerProtocolFee: BigNumber.from(0),
-      takerProtocolFee: BigNumber.from(0),
-      makerReferrerFee: BigNumber.from(sellerBountyBasisPoints),
+      makerProtocolFee: new BigNumber(0),
+      takerProtocolFee: new BigNumber(0),
+      makerReferrerFee: new BigNumber(sellerBountyBasisPoints),
       feeRecipient,
       feeMethod: FeeMethod.SplitFee,
     };

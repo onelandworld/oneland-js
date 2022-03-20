@@ -1,4 +1,4 @@
-import {BigNumber, BigNumberish, BytesLike} from 'ethers';
+import {BigNumber} from 'bignumber.js';
 
 export enum Network {
   Main = 'mainnet',
@@ -170,7 +170,7 @@ export interface Asset {
   // The asset's contract address
   tokenAddress: string;
   // The Wyvern schema name (e.g. "ERC721") for this asset
-  schemaName?: WyvernSchemaName;
+  schemaName: WyvernSchemaName;
   // Optional for ENS names
   name?: string;
   // Optional for fungible items
