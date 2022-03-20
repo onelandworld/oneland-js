@@ -1,5 +1,7 @@
 # Publish to npmjs
 
+[TODO] Use https://github.com/sindresorhus/np
+
 ```sh
 $ yarn build
 $ npm login --registry=https://registry.npmjs.org/

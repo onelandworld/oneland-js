@@ -19,7 +19,7 @@ export class OneLandAPI {
   private _network: Network;
 
   constructor(config: OneLandAPIConfig) {
-    this._network = config.network;
+    this._network = config.network!;
     switch (config.network) {
       case Network.Rinkeby:
         this.apiBaseUrl = '';

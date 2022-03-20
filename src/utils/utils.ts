@@ -151,7 +151,6 @@ export const structToSign = (order, exchange, chainId) => {
 };
 
 export const hashOrder = (order: any) => {
-  console.log('hashOrder', order);
   return (
     '0x' +
     eip712

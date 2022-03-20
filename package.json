@@ -4,33 +4,69 @@
   "description": "oneland js",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
   "scripts": {
-    "build": "gts clean && tsc",
-    "test": "exit 0",
-    "lint": "gts lint",
-    "clean": "gts clean",
-    "compile": "tsc",
+    "start": "tsdx watch",
+    "build": "tsdx build",
+    "test": "tsdx test",
+    "lint": "tsdx lint",
+    "prepare": "tsdx build",
+    "size": "size-limit",
+    "analyze": "size-limit --why",
     "fix": "gts fix"
   },
   "repository": {
     "type": "git",
     "url": "git@github.com:onelandworld/oneland-js.git"
   },
+  "husky": {
+    "hooks": {
+      "pre-commit": "tsdx lint"
+    }
+  },
+  "prettier": {
+    "printWidth": 80,
+    "semi": true,
+    "singleQuote": true,
+    "trailingComma": "es5"
+  },
+  "size-limit": [
+    {
+      "path": "dist/oneland-js.cjs.production.min.js",
+      "limit": "10 KB"
+    },
+    {
+      "path": "dist/oneland-js.esm.js",
+      "limit": "10 KB"
+    }
+  ],
   "author": "maxmuncy",
   "license": "ISC",
   "dependencies": {
     "bignumber.js": "^9.0.2",
+    "bufferutil": "^4.0.6",
     "ethereumjs-util": "^5.1.2",
     "ethers": "^5.6.0",
-    "lodash": "^4.17.21"
+    "lodash": "^4.17.21",
+    "utf-8-validate": "^5.0.9",
+    "keccak": "^1.0.2"
   },
   "devDependencies": {
+    "@size-limit/preset-small-lib": "^7.0.8",
     "@typechain/ethers-v5": "^9.0.0",
+    "@types/lodash": "^4.14.180",
     "@types/node": "^14.11.2",
     "gts": "^3.1.0",
+    "husky": "^7.0.4",
+    "size-limit": "^7.0.8",
     "ts-node": "^10.0.0",
+    "tsdx": "^0.14.1",
+    "tslib": "^2.3.1",
     "typechain": "^7.0.1",
-    "typescript": "^4.0.3"
+    "typescript": "^4.6.2"
   },
   "engines": {
     "node": ">=16.13.0"

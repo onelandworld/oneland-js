@@ -1,7 +1,7 @@
 /**
  * Ref: https://github.com/onelandworld/wyvern-v3/blob/master/test/eip712.js
  */
-import * as ethUtil from 'ethereumjs-util';
+import { ethUtil } from '../ethereumjs-util';
 import {ethABI} from '../ethereumjs-abi';
 
 const eip712Domain = {
@@ -46,7 +46,6 @@ function encodeData(name: any, fields: any, data: any) {
     }
   }
 
-  // console.log('encodeData', encTypes, encValues);
   return ethABI.rawEncode(encTypes, encValues);
 }
 

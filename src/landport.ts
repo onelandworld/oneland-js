@@ -38,6 +38,7 @@ import {
   signTypedDataAsync,
   toEthBigNumber,
   fromEthBigNumber,
+  eip712,
   delay,
 } from './utils';
 import {
@@ -472,45 +473,28 @@ export class LandPort {
       staticTarget: order.staticTarget,
       staticSelector: order.staticSelector,
       staticExtradata: order.staticExtradata,
-      maximumFill: order.maximumFill.toString(),
-      listingTime: order.listingTime.toString(),
-      expirationTime: order.expirationTime.toString(),
-      salt: order.salt.toString(),
+      maximumFill: order.maximumFill.toFixed(),
+      listingTime: order.listingTime.toFixed(),
+      expirationTime: order.expirationTime.toFixed(),
+      salt: order.salt.toFixed()
     };
 
-    const str = structToSign(
-      order,
-      order.exchange,
-      this._network === Network.Main ? 1 : 4
-    );
     const domain = domainToSign(
       order.exchange,
       this._network === Network.Main ? 1 : 4
     );
-    const fields = {
+    const types = {
       Order: eip712Order.fields,
     };
     const value = {
-      data: order,
+      ...orderForSigning
     };
-    // const message = {
-    //   types: {
-    //     EIP712Domain: eip712.eip712Domain.fields,
-    //     Order: eip712Order.fields
-    //   },
-    //   domain: str.domain,
-    //   primaryType: 'Order',
-    //   message: order
-    // };
 
     const ecSignature = await signTypedDataAsync(
       this._provider.getSigner(),
       domain,
-      fields,
+      types,
       value
-      // this.web3,
-      // message,
-      // signerAddress
     );
     return {...ecSignature};
   }
