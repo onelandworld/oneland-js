@@ -45,6 +45,7 @@ import {
   constructWyvernV3AtomicMatchParameters,
   eip712,
   delay,
+  debug
 } from './utils';
 import {
   NULL_ADDRESS,
@@ -87,7 +88,7 @@ export class LandPort {
     );
     this._wyvernExchangeAbi = WyvernExchange.getAbiClass(
       this._network,
-      this._provider
+      this._provider.getSigner()
     );
     this._wyvernStaticAbi = WyvernStatic.getAbiClass(
       this._network,
@@ -144,13 +145,24 @@ export class LandPort {
       extraBountyBasisPoints,
       buyerAddress: buyerAddress || NULL_ADDRESS,
     });
-    console.log('after _makeSellOrder', order);
+    debug('_makeSellOrder', order);
 
     await this._sellOrderValidationAndApprovals({order, accountAddress});
 
     if (buyerEmail) {
       // TODO:
     }
+
+    // const contractHash = await this._wyvernExchangeAbi.hashOrder_(
+    //   order.registry, order.maker, order.staticTarget, order.staticSelector, order.staticExtradata,
+    //   toEthBigNumber(order.maximumFill), toEthBigNumber(order.listingTime), toEthBigNumber(order.expirationTime), toEthBigNumber(order.salt)
+    // );
+    // const jsHash = getOrderHash(order);
+    // debug('order hash by WyvernExchange', contractHash);
+    // debug('order hash by js util', jsHash);
+    // if (jsHash != contractHash) {
+    //   return;
+    // }
 
     const hashedOrder = {
       ...order,
@@ -323,8 +335,8 @@ export class LandPort {
         ? [order.metadata.schema]
         : [];
     const tokenAddress = order.paymentToken;
-    console.log('order.metadata', order.metadata);
-    console.log('wyAssets', wyAssets);
+    debug('order.metadata', order.metadata);
+    debug('wyAssets', wyAssets);
 
     await this._approveAll({
       schemaNames,
@@ -388,7 +400,7 @@ export class LandPort {
         0
       )) ||
       undefined;
-    console.log(
+    debug(
       `_approveAll, account: ${accountAddress}, proxy: ${proxyAddress}`
     );
 
@@ -400,7 +412,7 @@ export class LandPort {
     }
     const contractsWithApproveAll: Set<string> = new Set();
 
-    console.log(`_approveAll, wyAssets: ${wyAssets}`);
+    debug(`_approveAll, wyAssets: ${wyAssets}`);
 
     return Promise.all(
       wyAssets.map(async (wyAsset, i) => {
@@ -498,6 +510,9 @@ export class LandPort {
     const value = {
       ...orderForSigning
     };
+    // debug('signTypedDataAsync, domain', domain);
+    // debug('signTypedDataAsync, types', types);
+    // debug('signTypedDataAsync, value', value);
 
     const ecSignature = await signTypedDataAsync(
       this._provider.getSigner(),
@@ -528,16 +543,21 @@ export class LandPort {
     recipientAddress?: string;
     referrerAddress?: string;
   }): Promise<string> {
+    // debug('fulfillOrder', order);
+
     const matchingOrder = this._makeMatchingOrder({
       order,
       accountAddress,
       recipientAddress: recipientAddress || accountAddress,
     });
+    // debug('matchingOrder', matchingOrder);
 
     const hashedMatchingOrder = {
       ...matchingOrder,
       hash: getOrderHash(matchingOrder),
     };
+    // debug('hashedMatchingOrder', hashedMatchingOrder);
+
     let matchingOrderSignature;
     try {
       matchingOrderSignature = await this.authorizeOrder(hashedMatchingOrder, accountAddress);
@@ -656,9 +676,9 @@ export class LandPort {
       // User is neither - matching service
     }
 
-    // console.log('** Buy order: ', buy);
-    // console.log('** Sell order: ', sell);
-    // console.log(`accountAddress: ${accountAddress}, shouldValidateSell: ${shouldValidateSell}, shouldValidateBuy: ${shouldValidateBuy}`);
+    debug('** Buy order: ', buy);
+    debug('** Sell order: ', sell);
+    debug(`accountAddress: ${accountAddress}, shouldValidateSell: ${shouldValidateSell}, shouldValidateBuy: ${shouldValidateBuy}`);
 
     await this._validateMatch({
       buy,
@@ -680,7 +700,7 @@ export class LandPort {
       howToCall: 0,
       data
     };
-    // console.log('** call data', data);
+    // debug('** call data', data);
 
     const counterdata = (await this._wyvernStaticAbi.populateTransaction.test()).data!;
     const countercalldata = {
@@ -688,7 +708,7 @@ export class LandPort {
       howToCall: 0,
       data: counterdata
     };
-    // console.log('** counterdata', counterdata);
+    // debug('** counterdata', counterdata);
     
     const args: WyvernAtomicMatchParameters = constructWyvernV3AtomicMatchParameters(
       sell,
@@ -708,8 +728,12 @@ export class LandPort {
       ZERO_BYTES32
     );
 
+    // debug('_wyvernExchangeAbi.atomicMatch_', args);
     const trans = await this._wyvernExchangeAbi.atomicMatch_(
-      ...args
+      args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+      {
+        from: accountAddress,
+      }
     );
     return trans;
   }
@@ -765,7 +789,7 @@ export class LandPort {
 
       return true;
     } catch (error) {
-      console.log(error);
+      debug(error);
 
       if (retries <= 0) {
         throw new Error(
@@ -802,7 +826,7 @@ export class LandPort {
 
     const isValid = await this._wyvernExchangeAbi
       .validateOrderAuthorization_(order.hash!, order.maker, signature);
-    console.log(`** validateOrderAuthorization_, ${isValid}`);
+    debug(`** validateOrderAuthorization_, ${isValid}`);
     return isValid;
   }
 
@@ -1035,7 +1059,7 @@ export class LandPort {
       return null;
     }
     try {
-      console.log('Calling erc721Abi.setApprovalForAll...');
+      // debug('Calling erc721Abi.setApprovalForAll...');
       const transaction = await erc721Abi.setApprovalForAll(proxyAddress, true);
       await transaction.wait();
       skipApproveAllIfTokenAddressIn.add(tokenAddress);

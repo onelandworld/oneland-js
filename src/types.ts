@@ -51,8 +51,6 @@ export interface WyvernOrder {
   staticTarget: string;
   staticSelector: string;
   staticExtradata: string;
-  // paymentToken: string;
-  // basePrice: BigNumber;
   maximumFill: BigNumber;
   listingTime: BigNumber;
   expirationTime: BigNumber;
@@ -163,6 +161,38 @@ export interface Order extends UnsignedOrder, Partial<ECSignature> {
   cancelledOrFinalized?: boolean;
   markedInvalid?: boolean;
   nonce?: number;
+}
+
+/**
+ * Order attributes, including orderbook-specific query options. Used for API serialization
+ */
+ export interface OrderJSON extends Partial<ECSignature> {
+  registry: string;
+  exchange: string;
+  maker: string;
+  staticTarget: string;
+  staticSelector: string;
+  staticExtradata: string;
+  maximumFill: string;
+  listingTime: string;
+  expirationTime: string;
+  salt: string;
+
+  hash?: string,
+  tokenAddress: string,
+  tokenId: string,
+  paymentToken: string;
+  basePrice: string;
+  recipientAddress?: string;
+
+  feeMethod: number;
+  side: number;
+  saleKind: number;
+  quantity: string;
+  metadata: ExchangeMetadata;
+
+  // createdTime is undefined when order hasn't been posted yet
+  createdTime?: number | string;
 }
 
 export interface OneLandAPIConfig {

@@ -19,6 +19,7 @@ import {
   ECSignature,
   Order,
   UnsignedOrder,
+  OrderJSON,
   OrderSide,
   HowToCall,
   OrderCall,
@@ -280,4 +281,92 @@ export function constructWyvernV3AtomicMatchParameters(
       ethers.utils.defaultAbiCoder.encode(['uint8', 'bytes32', 'bytes32'], [countersig.v, countersig.r, countersig.s]) + ('')
     ])
   ];
+}
+
+export const orderFromJSON = (order: OrderJSON): Order => {
+  const createdDate = new Date(`${order.createdTime}Z`);
+
+  const fromJSON: Order = {
+    registry: order.registry,
+    exchange: order.exchange,
+    maker: order.maker,
+    staticTarget: order.staticTarget.toLowerCase(),
+    staticSelector: order.staticSelector.toLocaleLowerCase(),
+    staticExtradata: order.staticExtradata.toLocaleLowerCase(),
+    maximumFill: new BigNumber(order.maximumFill),
+    listingTime: new BigNumber(order.listingTime),
+    expirationTime: new BigNumber(order.expirationTime),
+    salt: new BigNumber(order.salt),
+
+    tokenAddress: order.tokenAddress,
+    tokenId: order.tokenId,
+
+    hash: order.hash,
+    paymentToken: order.paymentToken,
+    basePrice: new BigNumber(order.basePrice),
+    recipientAddress: order.recipientAddress,
+
+    feeMethod: order.feeMethod,
+    side: order.side,
+    saleKind: order.saleKind,
+    quantity: new BigNumber(order.quantity),
+
+    v: order.v,
+    r: order.r,
+    s: order.s,
+
+    metadata: order.metadata,
+    createdTime: new BigNumber(Math.round(createdDate.getTime() / 1000))
+  };
+
+  // Use client-side price calc, to account for buyer fee (not added by server) and latency
+  // fromJSON.currentPrice = estimateCurrentPrice(fromJSON);
+
+  return fromJSON;
+};
+
+/**
+ * Convert an order to JSON, hashing it as well if necessary
+ * @param order order (hashed or unhashed)
+ */
+export const orderToJSON = (order: Order): OrderJSON => {
+  const asJSON: OrderJSON = {
+    registry: order.registry.toLocaleLowerCase(),
+    exchange: order.exchange.toLowerCase(),
+    maker: order.maker.toLowerCase(),
+    staticTarget: order.staticTarget.toLowerCase(),
+    staticSelector: order.staticSelector.toLocaleLowerCase(),
+    staticExtradata: order.staticExtradata.toLocaleLowerCase(),
+    maximumFill: order.maximumFill.toFixed(),
+    listingTime: order.listingTime.toFixed(),
+    expirationTime: order.expirationTime.toFixed(),
+    salt: order.salt.toFixed(),
+
+    tokenAddress: order.tokenAddress,
+    tokenId: order.tokenId,
+
+    hash: order.hash,
+    paymentToken: order.paymentToken,
+    basePrice: order.basePrice.toFixed(),
+    recipientAddress: order.recipientAddress,
+
+    feeMethod: order.feeMethod,
+    side: order.side,
+    saleKind: order.saleKind,
+    quantity: order.quantity.toFixed(),
+
+    v: order.v,
+    r: order.r,
+    s: order.s,
+
+    metadata: order.metadata,
+    createdTime: order.createdTime ? order.createdTime.toFixed() : undefined,
+  };
+  return asJSON;
+};
+
+export function debug(message?: any, ...optionalParams: any[]) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(message, ...optionalParams);
+  }
 }
