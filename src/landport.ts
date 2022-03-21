@@ -2,6 +2,7 @@ import {ethers} from 'ethers';
 import {BigNumber} from 'bignumber.js';
 import {
   Network,
+  Order,
   UnhashedOrder,
   SaleKind,
   Asset,
@@ -16,6 +17,7 @@ import {
   OneLandAsset,
   UnsignedOrder,
   ECSignature,
+  WyvernAtomicMatchParameters
 } from './types';
 import {
   WyvernRegistryAbi,
@@ -36,14 +38,19 @@ import {
   structToSign,
   eip712Order,
   signTypedDataAsync,
+  makeBigNumber,
   toEthBigNumber,
   fromEthBigNumber,
+  assignOrdersToSides,
+  constructWyvernV3AtomicMatchParameters,
   eip712,
   delay,
 } from './utils';
 import {
   NULL_ADDRESS,
   MAX_UINT_256,
+  NULL_BLOCK_HASH,
+  ZERO_BYTES32,
   MIN_EXPIRATION_MINUTES,
   MAX_EXPIRATION_MONTHS,
   ORDER_MATCHING_LATENCY_SECONDS,
@@ -280,8 +287,10 @@ export class LandPort {
       staticTarget,
       staticSelector,
       staticExtradata,
+      tokenAddress: asset.tokenAddress,
+      tokenId: asset.tokenId,
       paymentToken,
-      // basePrice,
+      basePrice,
       // extra,
       listingTime: times.listingTime,
       expirationTime: times.expirationTime,
@@ -500,6 +509,341 @@ export class LandPort {
   }
 
   /**
+   * Fullfill or "take" an order for an asset, either a buy or sell order
+   * @param param0 __namedParamaters Object
+   * @param order The order to fulfill, a.k.a. "take"
+   * @param accountAddress The taker's wallet address
+   * @param recipientAddress The optional address to receive the order's item(s) or curriencies. If not specified, defaults to accountAddress.
+   * @param referrerAddress The optional address that referred the order
+   * @returns Transaction hash for fulfilling the order
+   */
+   public async fulfillOrder({
+    order,
+    accountAddress,
+    recipientAddress,
+    referrerAddress,
+  }: {
+    order: Order;
+    accountAddress: string;
+    recipientAddress?: string;
+    referrerAddress?: string;
+  }): Promise<string> {
+    const matchingOrder = this._makeMatchingOrder({
+      order,
+      accountAddress,
+      recipientAddress: recipientAddress || accountAddress,
+    });
+
+    const hashedMatchingOrder = {
+      ...matchingOrder,
+      hash: getOrderHash(matchingOrder),
+    };
+    let matchingOrderSignature;
+    try {
+      matchingOrderSignature = await this.authorizeOrder(hashedMatchingOrder, accountAddress);
+    } catch (error) {
+      console.error(error);
+      throw new Error("You declined to authorize your auction");
+    }
+    const matchingOrderWithSignature = {
+      ...hashedMatchingOrder,
+      ...matchingOrderSignature,
+    };
+
+    const { buy, sell } = assignOrdersToSides(order, matchingOrderWithSignature);
+
+    const metadata = this._getMetadata(order, referrerAddress);
+    const transaction = await this._atomicMatch({
+      buy,
+      sell,
+      accountAddress,
+      metadata,
+    });
+    await transaction.wait();
+    return transaction.hash;
+  }
+
+  public _makeMatchingOrder({
+    order,
+    accountAddress,
+    recipientAddress,
+  }: {
+    order: UnsignedOrder;
+    accountAddress: string;
+    recipientAddress: string;
+  }): UnsignedOrder {
+    accountAddress = validateAndFormatWalletAddress(accountAddress);
+    recipientAddress = validateAndFormatWalletAddress(recipientAddress);
+
+    const times = this._getTimeParameters({
+      expirationTimestamp: 0,
+      isMatchingOrder: true,
+    });
+
+    // const feeRecipient =  ONELAND_FEE_RECIPIENT;
+
+    const matchingOrder: UnhashedOrder = {
+      registry: order.registry,
+      exchange: order.exchange,
+      maker: accountAddress,
+      quantity: order.quantity,
+      maximumFill: order.maximumFill,
+      feeMethod: order.feeMethod,
+      side: (order.side + 1) % 2,
+      saleKind: SaleKind.FixedPrice,
+      staticTarget: order.staticTarget,
+      staticSelector: order.staticSelector,
+      staticExtradata: order.staticExtradata,
+      recipientAddress,
+      tokenAddress: order.tokenAddress,
+      tokenId: order.tokenId,
+      paymentToken: order.paymentToken,
+      basePrice: order.basePrice,
+      listingTime: times.listingTime,
+      expirationTime: times.expirationTime,
+      salt: generatePseudoRandomSalt(),
+      metadata: order.metadata,
+    };
+
+    return matchingOrder;
+  }
+
+  private _getMetadata(order: Order, referrerAddress?: string) {
+    const referrer = referrerAddress || order.metadata.referrerAddress;
+    if (referrer && ethers.utils.isAddress(referrer)) {
+      return referrer;
+    }
+    return undefined;
+  }
+
+  private async _atomicMatch({
+    buy,
+    sell,
+    accountAddress,
+    metadata = NULL_BLOCK_HASH,
+  }: {
+    buy: Order;
+    sell: Order;
+    accountAddress: string;
+    metadata?: string;
+  }) {
+    let value;
+    let shouldValidateBuy = true;
+    let shouldValidateSell = true;
+    // Only check buy, but shouldn't matter as they should always be equal
+
+    if (sell.maker.toLowerCase() == accountAddress.toLowerCase()) {
+      // USER IS THE SELLER, only validate the buy order
+      await this._sellOrderValidationAndApprovals({
+        order: sell,
+        accountAddress,
+      });
+      shouldValidateSell = false;
+    } else if (buy.maker.toLowerCase() == accountAddress.toLowerCase()) {
+      // USER IS THE BUYER, only validate the sell order
+      await this._buyOrderValidationAndApprovals({
+        order: buy,
+        counterOrder: sell,
+        accountAddress,
+      });
+      shouldValidateBuy = false;
+
+      // If using ETH to pay, set the value of the transaction to the current price
+      if (buy.paymentToken == NULL_ADDRESS) {
+        // value = await this._getRequiredAmountForTakingSellOrder(sell);
+      }
+    } else {
+      // User is neither - matching service
+    }
+
+    // console.log('** Buy order: ', buy);
+    // console.log('** Sell order: ', sell);
+    // console.log(`accountAddress: ${accountAddress}, shouldValidateSell: ${shouldValidateSell}, shouldValidateBuy: ${shouldValidateBuy}`);
+
+    await this._validateMatch({
+      buy,
+      sell,
+      accountAddress,
+      shouldValidateBuy,
+      shouldValidateSell,
+    });
+
+    // Construct call data
+    const erc721Abi = ERC721Abi__factory.connect(
+      sell.tokenAddress,
+      this._provider.getSigner()
+    );
+    const recipientAddress = buy.recipientAddress || accountAddress;
+    const data = (await erc721Abi.populateTransaction.transferFrom(sell.maker, recipientAddress, sell.tokenId)).data!;
+    const calldata = {
+      target: sell.tokenAddress,
+      howToCall: 0,
+      data
+    };
+    // console.log('** call data', data);
+
+    const counterdata = (await this._wyvernStaticAbi.populateTransaction.test()).data!;
+    const countercalldata = {
+      target: this._wyvernStaticAbi.address,
+      howToCall: 0,
+      data: counterdata
+    };
+    // console.log('** counterdata', counterdata);
+    
+    const args: WyvernAtomicMatchParameters = constructWyvernV3AtomicMatchParameters(
+      sell,
+      calldata,
+      {
+        v: sell.v || 0,
+        r: sell.r || NULL_BLOCK_HASH,
+        s: sell.s || NULL_BLOCK_HASH
+      },
+      buy,
+      countercalldata,
+      {
+        v: buy.v || 0,
+        r: buy.r || NULL_BLOCK_HASH,
+        s: buy.s || NULL_BLOCK_HASH
+      },
+      ZERO_BYTES32
+    );
+
+    const trans = await this._wyvernExchangeAbi.atomicMatch_(
+      ...args
+    );
+    return trans;
+  }
+
+  /**
+   * Validate against Wyvern that a buy and sell order can match
+   * @param param0 __namedParameters Object
+   * @param buy The buy order to validate
+   * @param sell The sell order to validate
+   * @param accountAddress Address for the user's wallet
+   * @param shouldValidateBuy Whether to validate the buy order individually.
+   * @param shouldValidateSell Whether to validate the sell order individually.
+   * @param retries How many times to retry if validation fails
+   */
+   public async _validateMatch(
+    {
+      buy,
+      sell,
+      accountAddress,
+      shouldValidateBuy = false,
+      shouldValidateSell = false,
+    }: {
+      buy: Order;
+      sell: Order;
+      accountAddress: string;
+      shouldValidateBuy?: boolean;
+      shouldValidateSell?: boolean;
+    },
+    retries = 1
+  ): Promise<boolean> {
+    try {
+      if (shouldValidateBuy) {
+        const buyValid = await this._validateOrder(buy);
+        this.logger(`Buy order is valid: ${buyValid}`);
+
+        if (!buyValid) {
+          throw new Error(
+            "Invalid buy order. It may have recently been removed. Please refresh the page and try again!"
+          );
+        }
+      }
+
+      if (shouldValidateSell) {
+        const sellValid = await this._validateOrder(sell);
+        this.logger(`Sell order is valid: ${sellValid}`);
+
+        if (!sellValid) {
+          throw new Error(
+            "Invalid sell order. It may have recently been removed. Please refresh the page and try again!"
+          );
+        }
+      }
+
+      return true;
+    } catch (error) {
+      console.log(error);
+
+      if (retries <= 0) {
+        throw new Error(
+          `Error matching this listing: ${
+            error instanceof Error ? error.message : ""
+          }. Please contact the maker or try again later!`
+        );
+      }
+      await delay(500);
+      return await this._validateMatch(
+        { buy, sell, accountAddress, shouldValidateBuy, shouldValidateSell },
+        retries - 1
+      );
+    }
+  }
+
+  // For creating email whitelists on order takers
+  public async _createEmailWhitelistEntry({
+    order,
+    buyerEmail,
+  }: {
+    order: UnhashedOrder;
+    buyerEmail: string;
+  }) {
+    const asset = "asset" in order.metadata ? order.metadata.asset : undefined;
+    if (!asset || !asset.id) {
+      throw new Error("Whitelisting only available for non-fungible assets.");
+    }
+    await this.api.postAssetWhitelist(asset.address, asset.id, buyerEmail);
+  }
+
+  public async _validateOrder(order: Order): Promise<boolean> {
+    const signature = ethers.utils.defaultAbiCoder.encode(['uint8', 'bytes32', 'bytes32'], [order.v, order.r, order.s]);
+
+    const isValid = await this._wyvernExchangeAbi
+      .validateOrderAuthorization_(order.hash!, order.maker, signature);
+    console.log(`** validateOrderAuthorization_, ${isValid}`);
+    return isValid;
+  }
+
+  // Throws
+  public async _buyOrderValidationAndApprovals({
+    order,
+    counterOrder,
+    accountAddress,
+  }: {
+    order: UnhashedOrder;
+    counterOrder?: Order;
+    accountAddress: string;
+  }) {
+    const tokenAddress = order.paymentToken;
+
+    if (tokenAddress != NULL_ADDRESS) {
+      // TODO: check and approve ERC20 payment token
+    }
+
+    // Check order formation
+    const buyValid = await this._wyvernExchangeAbi
+      .validateOrderParameters_(
+        order.registry,
+        order.maker,
+        order.staticTarget,
+        order.staticSelector,
+        order.staticExtradata,
+        toEthBigNumber(makeBigNumber(1)),
+        toEthBigNumber(order.listingTime),
+        toEthBigNumber(order.expirationTime),
+        toEthBigNumber(order.salt)
+      );
+    if (!buyValid) {
+      console.error(order);
+      throw new Error(
+        `Failed to validate buy order parameters. Make sure you're on the right network!`
+      );
+    }
+  }
+
+  /**
    * Check if an account, or its proxy, owns an asset on-chain
    * @param accountAddress Account address for the wallet
    * @param proxyAddress Proxy address for the account
@@ -549,6 +893,35 @@ export class LandPort {
     }
 
     return false;
+  }
+
+  /**
+   * Get the balance of a fungible token.
+   * Convenience method for getAssetBalance for fungibles
+   * @param param0 __namedParameters Object
+   * @param accountAddress Account address to check
+   * @param tokenAddress The address of the token to check balance for
+   * @param schemaName Optional schema name for the fungible token
+   * @param retries Number of times to retry if balance is undefined
+   */
+   public async getTokenBalance(
+    {
+      accountAddress,
+      tokenAddress,
+      schemaName = WyvernSchemaName.ERC20,
+    }: {
+      accountAddress: string;
+      tokenAddress: string;
+      schemaName?: WyvernSchemaName;
+    },
+    retries = 1
+  ) {
+    const asset: Asset = {
+      tokenId: null,
+      tokenAddress,
+      schemaName,
+    };
+    return this.getAssetBalance({ accountAddress, asset }, retries);
   }
 
   /**
@@ -897,16 +1270,16 @@ export class LandPort {
     }
 
     const basePrice = isEther
-      ? ethers.utils.parseEther(startAmount.toString())
+      ? fromEthBigNumber(ethers.utils.parseEther(startAmount.toString()))
       : toBaseUnitAmount(new BigNumber(startAmount), token.decimals);
 
     const extra = isEther
-      ? ethers.utils.parseEther(priceDiff.toString())
+      ? fromEthBigNumber(ethers.utils.parseEther(priceDiff.toString()))
       : toBaseUnitAmount(new BigNumber(priceDiff), token.decimals);
 
     const reservePrice = englishAuctionReservePrice
       ? isEther
-        ? ethers.utils.parseEther(englishAuctionReservePrice.toString())
+        ? fromEthBigNumber(ethers.utils.parseEther(englishAuctionReservePrice.toString()))
         : toBaseUnitAmount(
             new BigNumber(englishAuctionReservePrice),
             token.decimals

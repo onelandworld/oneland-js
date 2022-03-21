@@ -17,6 +17,12 @@ import {
   WyvernSchemaName,
   UnhashedOrder,
   ECSignature,
+  Order,
+  UnsignedOrder,
+  OrderSide,
+  HowToCall,
+  OrderCall,
+  WyvernAtomicMatchParameters
 } from '../types';
 import {eip712} from './eip712';
 
@@ -199,10 +205,79 @@ export async function signTypedDataAsync(
   return parseSig(signature);
 }
 
+/**
+ * Special fixes for making BigNumbers using web3 results
+ * @param arg An arg or the result of a web3 call to turn into a BigNumber
+ */
+ export function makeBigNumber(arg: number | string | BigNumber): BigNumber {
+  // Zero sometimes returned as 0x from contracts
+  if (arg === "0x") {
+    arg = 0;
+  }
+  // fix "new BigNumber() number type has more than 15 significant digits"
+  arg = arg.toString();
+  return new BigNumber(arg);
+}
+
 export function toEthBigNumber(num: BigNumber): EthBigNumber {
   return EthBigNumber.from(num.toFixed());
 }
 
 export function fromEthBigNumber(num: EthBigNumber): BigNumber {
   return new BigNumber(num.toHexString(), 16);
+}
+
+/**
+ * Assign an order and a new matching order to their buy/sell sides
+ * @param order Original order
+ * @param matchingOrder The result of _makeMatchingOrder
+ */
+ export function assignOrdersToSides(
+  order: Order,
+  matchingOrder: UnsignedOrder
+): { buy: Order; sell: Order } {
+  const isSellOrder = order.side == OrderSide.Sell;
+
+  let buy: Order;
+  let sell: Order;
+  if (!isSellOrder) {
+    buy = order;
+    sell = {
+      ...matchingOrder,
+      v: buy.v,
+      r: buy.r,
+      s: buy.s,
+    };
+  } else {
+    sell = order;
+    buy = {
+      ...matchingOrder
+    };
+  }
+
+  return { buy, sell };
+}
+
+export function constructWyvernV3AtomicMatchParameters(
+  order: Order,
+  call: OrderCall,
+  sig: ECSignature,
+  counterorder: Order,
+  countercall: OrderCall,
+  countersig: ECSignature,
+  metadata: string
+): WyvernAtomicMatchParameters {
+
+  return [
+    [order.registry, order.maker, order.staticTarget, toEthBigNumber(order.maximumFill), toEthBigNumber(order.listingTime), toEthBigNumber(order.expirationTime), toEthBigNumber(order.salt), call.target,
+      counterorder.registry, counterorder.maker, counterorder.staticTarget, toEthBigNumber(counterorder.maximumFill), toEthBigNumber(counterorder.listingTime), toEthBigNumber(counterorder.expirationTime), toEthBigNumber(counterorder.salt), countercall.target],
+    [order.staticSelector, counterorder.staticSelector],
+    order.staticExtradata, call.data, counterorder.staticExtradata, countercall.data,
+    [call.howToCall, countercall.howToCall],
+    metadata,
+    ethers.utils.defaultAbiCoder.encode(['bytes', 'bytes'], [
+      ethers.utils.defaultAbiCoder.encode(['uint8', 'bytes32', 'bytes32'], [sig.v, sig.r, sig.s]) + (''),
+      ethers.utils.defaultAbiCoder.encode(['uint8', 'bytes32', 'bytes32'], [countersig.v, countersig.r, countersig.s]) + ('')
+    ])
+  ];
 }

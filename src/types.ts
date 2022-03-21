@@ -1,4 +1,5 @@
 import {BigNumber} from 'bignumber.js';
+import {BigNumberish, BytesLike} from 'ethers';
 
 export enum Network {
   Main = 'mainnet',
@@ -26,6 +27,17 @@ export enum SaleKind {
   DutchAuction = 2,
 }
 
+export enum HowToCall {
+  Call = 0,
+  DelegateCall = 1,
+}
+
+export interface OrderCall {
+  target: string,
+  howToCall: HowToCall,
+  data: string
+}
+
 export interface ECSignature {
   v: number;
   r: string;
@@ -39,7 +51,8 @@ export interface WyvernOrder {
   staticTarget: string;
   staticSelector: string;
   staticExtradata: string;
-  paymentToken: string;
+  // paymentToken: string;
+  // basePrice: BigNumber;
   maximumFill: BigNumber;
   listingTime: BigNumber;
   expirationTime: BigNumber;
@@ -82,6 +95,12 @@ export type ExchangeMetadata =
   | ExchangeMetadataForBundle;
 
 export interface UnhashedOrder extends WyvernOrder {
+  tokenAddress: string,
+  tokenId: string,
+  paymentToken: string;
+  basePrice: BigNumber;
+  recipientAddress?: string;
+
   feeMethod: FeeMethod;
   side: OrderSide;
   saleKind: SaleKind;
@@ -165,8 +184,8 @@ export enum WyvernSchemaName {
  * Simple, unannotated asset spec
  */
 export interface Asset {
-  // The asset's token ID, or null if ERC-20
-  tokenId: string | null;
+  // The asset's token ID
+  tokenId: string;
   // The asset's contract address
   tokenAddress: string;
   // The Wyvern schema name (e.g. "ERC721") for this asset
@@ -303,3 +322,15 @@ export interface OneLandFungibleTokenQuery
   // Typescript bug requires this duplication
   symbol?: string;
 }
+
+export type WyvernAtomicMatchParameters = [
+  BigNumberish[],
+  [BytesLike, BytesLike],
+  BytesLike,
+  BytesLike,
+  BytesLike,
+  BytesLike,
+  [BigNumberish, BigNumberish],
+  BytesLike,
+  BytesLike
+];
