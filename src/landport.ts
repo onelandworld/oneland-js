@@ -43,6 +43,7 @@ import {
   fromEthBigNumber,
   assignOrdersToSides,
   constructWyvernV3AtomicMatchParameters,
+  orderToJSON,
   eip712,
   delay,
   debug
@@ -153,17 +154,6 @@ export class LandPort {
       // TODO:
     }
 
-    // const contractHash = await this._wyvernExchangeAbi.hashOrder_(
-    //   order.registry, order.maker, order.staticTarget, order.staticSelector, order.staticExtradata,
-    //   toEthBigNumber(order.maximumFill), toEthBigNumber(order.listingTime), toEthBigNumber(order.expirationTime), toEthBigNumber(order.salt)
-    // );
-    // const jsHash = getOrderHash(order);
-    // debug('order hash by WyvernExchange', contractHash);
-    // debug('order hash by js util', jsHash);
-    // if (jsHash != contractHash) {
-    //   return;
-    // }
-
     const hashedOrder = {
       ...order,
       hash: getOrderHash(order),
@@ -181,8 +171,7 @@ export class LandPort {
       ...signature,
     };
 
-    // TODO: post Order to backend service
-    return orderWithSignature;
+    return this.validateAndPostOrder(orderWithSignature);
   }
 
   public async _makeSellOrder({
@@ -274,11 +263,9 @@ export class LandPort {
         useTxnOriginStaticCall: waitForHighestBid,
       });
 
-    const registry = WyvernRegistry.getContractAddress(this._network);
-    const exchange = WyvernExchange.getContractAddress(this._network);
     return {
-      registry,
-      exchange,
+      registry: this._wyvernRegistryAbi.address,
+      exchange: this._wyvernExchangeAbi.address,
       maker: accountAddress,
       // taker: buyerAddress,
       quantity: quantityBN,
@@ -733,6 +720,7 @@ export class LandPort {
       args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],
       {
         from: accountAddress,
+        value: sell.paymentToken == NULL_ADDRESS ? toEthBigNumber(sell.basePrice) : toEthBigNumber(new BigNumber(0))
       }
     );
     return trans;
@@ -866,6 +854,17 @@ export class LandPort {
       );
     }
   }
+
+    /**
+   * Post an order to the OneLand orderbook.
+   * @param order The order to post. Can either be signed by the maker or pre-approved on the Wyvern contract using approveOrder.
+   * @returns The order as stored by the orderbook
+   */
+     public async validateAndPostOrder(order: Order): Promise<Order> {
+      // Validation is called server-side
+      const confirmedOrder = await this.api.postOrder(orderToJSON(order));
+      return confirmedOrder;
+    }
 
   /**
    * Check if an account, or its proxy, owns an asset on-chain
