@@ -8,10 +8,10 @@ import {
   OneLandFungibleTokenQuery,
   OneLandFungibleToken,
   OrderJSON,
-  Order
+  Order,
 } from './types';
 import { orderFromJSON } from './utils';
-import {deployed} from './contracts/deployed';
+import { deployed } from './contracts/deployed';
 
 // TODO: fetch from backend API service
 export class OneLandAPI {
@@ -59,7 +59,7 @@ export class OneLandAPI {
       collection: {},
       name: '',
       description: '',
-      owner: {address: ''},
+      owner: { address: '' },
       orders: null,
       buyOrders: null,
       sellOrders: null,
@@ -78,7 +78,7 @@ export class OneLandAPI {
     query: OneLandFungibleTokenQuery = {},
     page = 1,
     retries = 1
-  ): Promise<{tokens: OneLandFungibleToken[]}> {
+  ): Promise<{ tokens: OneLandFungibleToken[] }> {
     return {
       tokens: [
         {
@@ -90,7 +90,6 @@ export class OneLandAPI {
       ],
     };
   }
-
 
   /**
    * Send an order to the orderbook.
@@ -116,7 +115,7 @@ export class OneLandAPI {
     tokenAddress: string,
     tokenId: string | number,
     email: string
-    ): Promise<boolean> {
+  ): Promise<boolean> {
     return true;
   }
 }

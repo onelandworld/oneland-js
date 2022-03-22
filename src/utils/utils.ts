@@ -1,15 +1,15 @@
-import {ethers, BigNumber as EthBigNumber} from 'ethers';
+import { ethers, BigNumber as EthBigNumber } from 'ethers';
 /* eslint-disable node/no-extraneous-import */
 import {
   TypedDataSigner,
   TypedDataDomain,
   TypedDataField,
 } from '@ethersproject/abstract-signer';
-import {BigNumber} from 'bignumber.js';
+import { BigNumber } from 'bignumber.js';
 import {
   MAX_EXPIRATION_MONTHS,
   NULL_ADDRESS,
-  MAX_DIGITS_IN_UNSIGNED_256_INT
+  MAX_DIGITS_IN_UNSIGNED_256_INT,
 } from '../constants';
 import {
   Asset,
@@ -23,22 +23,22 @@ import {
   OrderSide,
   HowToCall,
   OrderCall,
-  WyvernAtomicMatchParameters
+  WyvernAtomicMatchParameters,
 } from '../types';
-import {eip712} from './eip712';
+import { eip712 } from './eip712';
 
 export const eip712Order = {
   name: 'Order',
   fields: [
-    {name: 'registry', type: 'address'},
-    {name: 'maker', type: 'address'},
-    {name: 'staticTarget', type: 'address'},
-    {name: 'staticSelector', type: 'bytes4'},
-    {name: 'staticExtradata', type: 'bytes'},
-    {name: 'maximumFill', type: 'uint256'},
-    {name: 'listingTime', type: 'uint256'},
-    {name: 'expirationTime', type: 'uint256'},
-    {name: 'salt', type: 'uint256'},
+    { name: 'registry', type: 'address' },
+    { name: 'maker', type: 'address' },
+    { name: 'staticTarget', type: 'address' },
+    { name: 'staticSelector', type: 'bytes4' },
+    { name: 'staticExtradata', type: 'bytes' },
+    { name: 'maximumFill', type: 'uint256' },
+    { name: 'listingTime', type: 'uint256' },
+    { name: 'expirationTime', type: 'uint256' },
+    { name: 'salt', type: 'uint256' },
   ],
 };
 
@@ -171,7 +171,7 @@ export const parseSig = (bytes: any) => {
   const r = '0x' + bytes.slice(0, 64);
   const s = '0x' + bytes.slice(64, 128);
   const v = parseInt('0x' + bytes.slice(128, 130), 16);
-  return {v, r, s};
+  return { v, r, s };
 };
 
 /**
@@ -210,9 +210,9 @@ export async function signTypedDataAsync(
  * Special fixes for making BigNumbers using web3 results
  * @param arg An arg or the result of a web3 call to turn into a BigNumber
  */
- export function makeBigNumber(arg: number | string | BigNumber): BigNumber {
+export function makeBigNumber(arg: number | string | BigNumber): BigNumber {
   // Zero sometimes returned as 0x from contracts
-  if (arg === "0x") {
+  if (arg === '0x') {
     arg = 0;
   }
   // fix "new BigNumber() number type has more than 15 significant digits"
@@ -233,11 +233,11 @@ export function fromEthBigNumber(num: EthBigNumber): BigNumber {
  * @param order Original order
  * @param matchingOrder The result of _makeMatchingOrder
  */
- export function assignOrdersToSides(
+export function assignOrdersToSides(
   order: Order,
   matchingOrder: UnsignedOrder
 ): { buy: Order; sell: Order } {
-  const isSellOrder = order.side == OrderSide.Sell;
+  const isSellOrder = order.side === OrderSide.Sell;
 
   let buy: Order;
   let sell: Order;
@@ -252,7 +252,7 @@ export function fromEthBigNumber(num: EthBigNumber): BigNumber {
   } else {
     sell = order;
     buy = {
-      ...matchingOrder
+      ...matchingOrder,
     };
   }
 
@@ -268,18 +268,45 @@ export function constructWyvernV3AtomicMatchParameters(
   countersig: ECSignature,
   metadata: string
 ): WyvernAtomicMatchParameters {
-
   return [
-    [order.registry, order.maker, order.staticTarget, toEthBigNumber(order.maximumFill), toEthBigNumber(order.listingTime), toEthBigNumber(order.expirationTime), toEthBigNumber(order.salt), call.target,
-      counterorder.registry, counterorder.maker, counterorder.staticTarget, toEthBigNumber(counterorder.maximumFill), toEthBigNumber(counterorder.listingTime), toEthBigNumber(counterorder.expirationTime), toEthBigNumber(counterorder.salt), countercall.target],
+    [
+      order.registry,
+      order.maker,
+      order.staticTarget,
+      toEthBigNumber(order.maximumFill),
+      toEthBigNumber(order.listingTime),
+      toEthBigNumber(order.expirationTime),
+      toEthBigNumber(order.salt),
+      call.target,
+      counterorder.registry,
+      counterorder.maker,
+      counterorder.staticTarget,
+      toEthBigNumber(counterorder.maximumFill),
+      toEthBigNumber(counterorder.listingTime),
+      toEthBigNumber(counterorder.expirationTime),
+      toEthBigNumber(counterorder.salt),
+      countercall.target,
+    ],
     [order.staticSelector, counterorder.staticSelector],
-    order.staticExtradata, call.data, counterorder.staticExtradata, countercall.data,
+    order.staticExtradata,
+    call.data,
+    counterorder.staticExtradata,
+    countercall.data,
     [call.howToCall, countercall.howToCall],
     metadata,
-    ethers.utils.defaultAbiCoder.encode(['bytes', 'bytes'], [
-      ethers.utils.defaultAbiCoder.encode(['uint8', 'bytes32', 'bytes32'], [sig.v, sig.r, sig.s]) + (''),
-      ethers.utils.defaultAbiCoder.encode(['uint8', 'bytes32', 'bytes32'], [countersig.v, countersig.r, countersig.s]) + ('')
-    ])
+    ethers.utils.defaultAbiCoder.encode(
+      ['bytes', 'bytes'],
+      [
+        ethers.utils.defaultAbiCoder.encode(
+          ['uint8', 'bytes32', 'bytes32'],
+          [sig.v, sig.r, sig.s]
+        ) + '',
+        ethers.utils.defaultAbiCoder.encode(
+          ['uint8', 'bytes32', 'bytes32'],
+          [countersig.v, countersig.r, countersig.s]
+        ) + '',
+      ]
+    ),
   ];
 }
 
@@ -316,7 +343,7 @@ export const orderFromJSON = (order: OrderJSON): Order => {
     s: order.s,
 
     metadata: order.metadata,
-    createdTime: new BigNumber(Math.round(createdDate.getTime() / 1000))
+    createdTime: new BigNumber(Math.round(createdDate.getTime() / 1000)),
   };
 
   // Use client-side price calc, to account for buyer fee (not added by server) and latency

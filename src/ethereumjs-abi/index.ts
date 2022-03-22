@@ -386,7 +386,7 @@ function rawEncode(types, values) {
 
   let headLength = 0;
 
-  types.forEach(type => {
+  types.forEach((type) => {
     if (isArray(type)) {
       const size = parseTypeArray(type);
 
@@ -478,7 +478,7 @@ function stringify(types, values) {
     // if it is an array type, concat the items
     if (/^[^\[]+\[.*\]$/.test(type)) {
       value = value
-        .map(item => {
+        .map((item) => {
           return _stringify(type, item);
         })
         .join(', ');
@@ -507,7 +507,7 @@ function solidityHexValue(type, value, bitsize) {
         throw new Error('Elements exceed array size: ' + arraySize);
       }
     }
-    const arrayValues = value.map(v => {
+    const arrayValues = value.map((v) => {
       return solidityHexValue(subType, v, 256);
     });
     return Buffer.concat(arrayValues);

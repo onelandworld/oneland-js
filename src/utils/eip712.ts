@@ -2,21 +2,21 @@
  * Ref: https://github.com/onelandworld/wyvern-v3/blob/master/test/eip712.js
  */
 import { ethUtil } from '../ethereumjs-util';
-import {ethABI} from '../ethereumjs-abi';
+import { ethABI } from '../ethereumjs-abi';
 
 const eip712Domain = {
   name: 'EIP712Domain',
   fields: [
-    {name: 'name', type: 'string'},
-    {name: 'version', type: 'string'},
-    {name: 'chainId', type: 'uint256'},
-    {name: 'verifyingContract', type: 'address'},
+    { name: 'name', type: 'string' },
+    { name: 'version', type: 'string' },
+    { name: 'chainId', type: 'uint256' },
+    { name: 'verifyingContract', type: 'address' },
   ],
 };
 
 function encodeType(name: any, fields: any) {
   const result = `${name}(${fields
-    .map(({name, type}) => `${type} ${name}`)
+    .map(({ name, type }) => `${type} ${name}`)
     .join(',')})`;
   return result;
 }

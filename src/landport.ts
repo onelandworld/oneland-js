@@ -1,5 +1,5 @@
-import {ethers} from 'ethers';
-import {BigNumber} from 'bignumber.js';
+import { ethers } from 'ethers';
+import { BigNumber } from 'bignumber.js';
 import {
   Network,
   Order,
@@ -17,7 +17,7 @@ import {
   OneLandAsset,
   UnsignedOrder,
   ECSignature,
-  WyvernAtomicMatchParameters
+  WyvernAtomicMatchParameters,
 } from './types';
 import {
   WyvernRegistryAbi,
@@ -26,7 +26,7 @@ import {
   ERC20Abi__factory,
   ERC721Abi__factory,
 } from './typechain';
-import {WyvernRegistry, WyvernExchange, WyvernStatic} from './contracts';
+import { WyvernRegistry, WyvernExchange, WyvernStatic } from './contracts';
 import {
   getMaxOrderExpirationTimestamp,
   validateAndFormatWalletAddress,
@@ -46,7 +46,7 @@ import {
   orderToJSON,
   eip712,
   delay,
-  debug
+  debug,
 } from './utils';
 import {
   NULL_ADDRESS,
@@ -63,7 +63,7 @@ import {
   DEFAULT_MAX_BOUNTY,
   ONELAND_SELLER_BOUNTY_BASIS_POINTS,
 } from './constants';
-import {OneLandAPI} from './api';
+import { OneLandAPI } from './api';
 
 export class LandPort {
   private _network: Network;
@@ -148,7 +148,7 @@ export class LandPort {
     });
     debug('_makeSellOrder', order);
 
-    await this._sellOrderValidationAndApprovals({order, accountAddress});
+    await this._sellOrderValidationAndApprovals({ order, accountAddress });
 
     if (buyerEmail) {
       // TODO:
@@ -225,7 +225,7 @@ export class LandPort {
         ? SaleKind.DutchAuction
         : SaleKind.FixedPrice;
 
-    const {basePrice, extra, paymentToken, reservePrice} =
+    const { basePrice, extra, paymentToken, reservePrice } =
       await this._getPriceParameters(
         OrderSide.Sell,
         paymentTokenAddress,
@@ -257,7 +257,7 @@ export class LandPort {
       sellerBountyBasisPoints
     );
 
-    const {staticTarget, staticSelector, staticExtradata} =
+    const { staticTarget, staticSelector, staticExtradata } =
       await this._getStaticCallTargetAndExtraData({
         asset: oneLandAsset,
         useTxnOriginStaticCall: waitForHighestBid,
@@ -387,9 +387,7 @@ export class LandPort {
         0
       )) ||
       undefined;
-    debug(
-      `_approveAll, account: ${accountAddress}, proxy: ${proxyAddress}`
-    );
+    debug(`_approveAll, account: ${accountAddress}, proxy: ${proxyAddress}`);
 
     if (!proxyAddress) {
       proxyAddress = await WyvernRegistry.registerProxy(
@@ -471,7 +469,7 @@ export class LandPort {
   public async authorizeOrder(
     order: UnsignedOrder,
     signerAddress?: string
-  ): Promise<(ECSignature & {nonce?: number}) | null> {
+  ): Promise<(ECSignature & { nonce?: number }) | null> {
     signerAddress = signerAddress || order.maker;
 
     // We need to manually specify each field because OS orders can contain unrelated data
@@ -484,7 +482,7 @@ export class LandPort {
       maximumFill: order.maximumFill.toFixed(),
       listingTime: order.listingTime.toFixed(),
       expirationTime: order.expirationTime.toFixed(),
-      salt: order.salt.toFixed()
+      salt: order.salt.toFixed(),
     };
 
     const domain = domainToSign(
@@ -495,7 +493,7 @@ export class LandPort {
       Order: eip712Order.fields,
     };
     const value = {
-      ...orderForSigning
+      ...orderForSigning,
     };
     // debug('signTypedDataAsync, domain', domain);
     // debug('signTypedDataAsync, types', types);
@@ -507,7 +505,7 @@ export class LandPort {
       types,
       value
     );
-    return {...ecSignature};
+    return { ...ecSignature };
   }
 
   /**
@@ -519,7 +517,7 @@ export class LandPort {
    * @param referrerAddress The optional address that referred the order
    * @returns Transaction hash for fulfilling the order
    */
-   public async fulfillOrder({
+  public async fulfillOrder({
     order,
     accountAddress,
     recipientAddress,
@@ -547,17 +545,23 @@ export class LandPort {
 
     let matchingOrderSignature;
     try {
-      matchingOrderSignature = await this.authorizeOrder(hashedMatchingOrder, accountAddress);
+      matchingOrderSignature = await this.authorizeOrder(
+        hashedMatchingOrder,
+        accountAddress
+      );
     } catch (error) {
       console.error(error);
-      throw new Error("You declined to authorize your auction");
+      throw new Error('You declined to authorize your auction');
     }
     const matchingOrderWithSignature = {
       ...hashedMatchingOrder,
       ...matchingOrderSignature,
     };
 
-    const { buy, sell } = assignOrdersToSides(order, matchingOrderWithSignature);
+    const { buy, sell } = assignOrdersToSides(
+      order,
+      matchingOrderWithSignature
+    );
 
     const metadata = this._getMetadata(order, referrerAddress);
     const transaction = await this._atomicMatch({
@@ -639,14 +643,14 @@ export class LandPort {
     let shouldValidateSell = true;
     // Only check buy, but shouldn't matter as they should always be equal
 
-    if (sell.maker.toLowerCase() == accountAddress.toLowerCase()) {
+    if (sell.maker.toLowerCase() === accountAddress.toLowerCase()) {
       // USER IS THE SELLER, only validate the buy order
       await this._sellOrderValidationAndApprovals({
         order: sell,
         accountAddress,
       });
       shouldValidateSell = false;
-    } else if (buy.maker.toLowerCase() == accountAddress.toLowerCase()) {
+    } else if (buy.maker.toLowerCase() === accountAddress.toLowerCase()) {
       // USER IS THE BUYER, only validate the sell order
       await this._buyOrderValidationAndApprovals({
         order: buy,
@@ -656,7 +660,7 @@ export class LandPort {
       shouldValidateBuy = false;
 
       // If using ETH to pay, set the value of the transaction to the current price
-      if (buy.paymentToken == NULL_ADDRESS) {
+      if (buy.paymentToken === NULL_ADDRESS) {
         // value = await this._getRequiredAmountForTakingSellOrder(sell);
       }
     } else {
@@ -665,7 +669,9 @@ export class LandPort {
 
     debug('** Buy order: ', buy);
     debug('** Sell order: ', sell);
-    debug(`accountAddress: ${accountAddress}, shouldValidateSell: ${shouldValidateSell}, shouldValidateBuy: ${shouldValidateBuy}`);
+    debug(
+      `accountAddress: ${accountAddress}, shouldValidateSell: ${shouldValidateSell}, shouldValidateBuy: ${shouldValidateBuy}`
+    );
 
     await this._validateMatch({
       buy,
@@ -681,46 +687,65 @@ export class LandPort {
       this._provider.getSigner()
     );
     const recipientAddress = buy.recipientAddress || accountAddress;
-    const data = (await erc721Abi.populateTransaction.transferFrom(sell.maker, recipientAddress, sell.tokenId)).data!;
+    const data = (
+      await erc721Abi.populateTransaction.transferFrom(
+        sell.maker,
+        recipientAddress,
+        sell.tokenId
+      )
+    ).data!;
     const calldata = {
       target: sell.tokenAddress,
       howToCall: 0,
-      data
+      data,
     };
     // debug('** call data', data);
 
-    const counterdata = (await this._wyvernStaticAbi.populateTransaction.test()).data!;
+    const counterdata = (await this._wyvernStaticAbi.populateTransaction.test())
+      .data!;
     const countercalldata = {
       target: this._wyvernStaticAbi.address,
       howToCall: 0,
-      data: counterdata
+      data: counterdata,
     };
     // debug('** counterdata', counterdata);
-    
-    const args: WyvernAtomicMatchParameters = constructWyvernV3AtomicMatchParameters(
-      sell,
-      calldata,
-      {
-        v: sell.v || 0,
-        r: sell.r || NULL_BLOCK_HASH,
-        s: sell.s || NULL_BLOCK_HASH
-      },
-      buy,
-      countercalldata,
-      {
-        v: buy.v || 0,
-        r: buy.r || NULL_BLOCK_HASH,
-        s: buy.s || NULL_BLOCK_HASH
-      },
-      ZERO_BYTES32
-    );
+
+    const args: WyvernAtomicMatchParameters =
+      constructWyvernV3AtomicMatchParameters(
+        sell,
+        calldata,
+        {
+          v: sell.v || 0,
+          r: sell.r || NULL_BLOCK_HASH,
+          s: sell.s || NULL_BLOCK_HASH,
+        },
+        buy,
+        countercalldata,
+        {
+          v: buy.v || 0,
+          r: buy.r || NULL_BLOCK_HASH,
+          s: buy.s || NULL_BLOCK_HASH,
+        },
+        ZERO_BYTES32
+      );
 
     // debug('_wyvernExchangeAbi.atomicMatch_', args);
     const trans = await this._wyvernExchangeAbi.atomicMatch_(
-      args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8],
+      args[0],
+      args[1],
+      args[2],
+      args[3],
+      args[4],
+      args[5],
+      args[6],
+      args[7],
+      args[8],
       {
         from: accountAddress,
-        value: sell.paymentToken == NULL_ADDRESS ? toEthBigNumber(sell.basePrice) : toEthBigNumber(new BigNumber(0))
+        value:
+          sell.paymentToken === NULL_ADDRESS
+            ? toEthBigNumber(sell.basePrice)
+            : toEthBigNumber(new BigNumber(0)),
       }
     );
     return trans;
@@ -736,7 +761,7 @@ export class LandPort {
    * @param shouldValidateSell Whether to validate the sell order individually.
    * @param retries How many times to retry if validation fails
    */
-   public async _validateMatch(
+  public async _validateMatch(
     {
       buy,
       sell,
@@ -759,7 +784,7 @@ export class LandPort {
 
         if (!buyValid) {
           throw new Error(
-            "Invalid buy order. It may have recently been removed. Please refresh the page and try again!"
+            'Invalid buy order. It may have recently been removed. Please refresh the page and try again!'
           );
         }
       }
@@ -770,7 +795,7 @@ export class LandPort {
 
         if (!sellValid) {
           throw new Error(
-            "Invalid sell order. It may have recently been removed. Please refresh the page and try again!"
+            'Invalid sell order. It may have recently been removed. Please refresh the page and try again!'
           );
         }
       }
@@ -782,7 +807,7 @@ export class LandPort {
       if (retries <= 0) {
         throw new Error(
           `Error matching this listing: ${
-            error instanceof Error ? error.message : ""
+            error instanceof Error ? error.message : ''
           }. Please contact the maker or try again later!`
         );
       }
@@ -802,18 +827,24 @@ export class LandPort {
     order: UnhashedOrder;
     buyerEmail: string;
   }) {
-    const asset = "asset" in order.metadata ? order.metadata.asset : undefined;
+    const asset = 'asset' in order.metadata ? order.metadata.asset : undefined;
     if (!asset || !asset.id) {
-      throw new Error("Whitelisting only available for non-fungible assets.");
+      throw new Error('Whitelisting only available for non-fungible assets.');
     }
     await this.api.postAssetWhitelist(asset.address, asset.id, buyerEmail);
   }
 
   public async _validateOrder(order: Order): Promise<boolean> {
-    const signature = ethers.utils.defaultAbiCoder.encode(['uint8', 'bytes32', 'bytes32'], [order.v, order.r, order.s]);
+    const signature = ethers.utils.defaultAbiCoder.encode(
+      ['uint8', 'bytes32', 'bytes32'],
+      [order.v, order.r, order.s]
+    );
 
-    const isValid = await this._wyvernExchangeAbi
-      .validateOrderAuthorization_(order.hash!, order.maker, signature);
+    const isValid = await this._wyvernExchangeAbi.validateOrderAuthorization_(
+      order.hash!,
+      order.maker,
+      signature
+    );
     debug(`** validateOrderAuthorization_, ${isValid}`);
     return isValid;
   }
@@ -830,41 +861,40 @@ export class LandPort {
   }) {
     const tokenAddress = order.paymentToken;
 
-    if (tokenAddress != NULL_ADDRESS) {
+    if (tokenAddress !== NULL_ADDRESS) {
       // TODO: check and approve ERC20 payment token
     }
 
     // Check order formation
-    const buyValid = await this._wyvernExchangeAbi
-      .validateOrderParameters_(
-        order.registry,
-        order.maker,
-        order.staticTarget,
-        order.staticSelector,
-        order.staticExtradata,
-        toEthBigNumber(makeBigNumber(1)),
-        toEthBigNumber(order.listingTime),
-        toEthBigNumber(order.expirationTime),
-        toEthBigNumber(order.salt)
-      );
+    const buyValid = await this._wyvernExchangeAbi.validateOrderParameters_(
+      order.registry,
+      order.maker,
+      order.staticTarget,
+      order.staticSelector,
+      order.staticExtradata,
+      toEthBigNumber(makeBigNumber(1)),
+      toEthBigNumber(order.listingTime),
+      toEthBigNumber(order.expirationTime),
+      toEthBigNumber(order.salt)
+    );
     if (!buyValid) {
       console.error(order);
       throw new Error(
-        `Failed to validate buy order parameters. Make sure you're on the right network!`
+        "Failed to validate buy order parameters. Make sure you're on the right network!"
       );
     }
   }
 
-    /**
+  /**
    * Post an order to the OneLand orderbook.
    * @param order The order to post. Can either be signed by the maker or pre-approved on the Wyvern contract using approveOrder.
    * @returns The order as stored by the orderbook
    */
-     public async validateAndPostOrder(order: Order): Promise<Order> {
-      // Validation is called server-side
-      const confirmedOrder = await this.api.postOrder(orderToJSON(order));
-      return confirmedOrder;
-    }
+  public async validateAndPostOrder(order: Order): Promise<Order> {
+    // Validation is called server-side
+    const confirmedOrder = await this.api.postOrder(orderToJSON(order));
+    return confirmedOrder;
+  }
 
   /**
    * Check if an account, or its proxy, owns an asset on-chain
@@ -927,7 +957,7 @@ export class LandPort {
    * @param schemaName Optional schema name for the fungible token
    * @param retries Number of times to retry if balance is undefined
    */
-   public async getTokenBalance(
+  public async getTokenBalance(
     {
       accountAddress,
       tokenAddress,
@@ -955,7 +985,7 @@ export class LandPort {
    * @param retries How many times to retry if balance is 0
    */
   public async getAssetBalance(
-    {accountAddress, asset}: {accountAddress: string; asset: Asset},
+    { accountAddress, asset }: { accountAddress: string; asset: Asset },
     retries = 1
   ): Promise<BigNumber> {
     const schema = asset.schemaName as WyvernSchemaName;
@@ -985,7 +1015,7 @@ export class LandPort {
     } else {
       await delay(500);
       // Recursively check owner again
-      return await this.getAssetBalance({accountAddress, asset}, retries - 1);
+      return await this.getAssetBalance({ accountAddress, asset }, retries - 1);
     }
   }
 
@@ -1250,7 +1280,7 @@ export class LandPort {
     const priceDiff = endAmount ? startAmount - endAmount : 0;
     const paymentToken = tokenAddress.toLowerCase();
     const isEther = tokenAddress === NULL_ADDRESS;
-    const {tokens} = await this.api.getPaymentTokens({
+    const { tokens } = await this.api.getPaymentTokens({
       address: paymentToken,
     });
     const token = tokens[0];
@@ -1302,14 +1332,16 @@ export class LandPort {
 
     const reservePrice = englishAuctionReservePrice
       ? isEther
-        ? fromEthBigNumber(ethers.utils.parseEther(englishAuctionReservePrice.toString()))
+        ? fromEthBigNumber(
+            ethers.utils.parseEther(englishAuctionReservePrice.toString())
+          )
         : toBaseUnitAmount(
             new BigNumber(englishAuctionReservePrice),
             token.decimals
           )
       : undefined;
 
-    return {basePrice, extra, paymentToken, reservePrice};
+    return { basePrice, extra, paymentToken, reservePrice };
   }
 
   /**

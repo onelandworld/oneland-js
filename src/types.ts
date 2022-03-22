@@ -1,5 +1,5 @@
-import {BigNumber} from 'bignumber.js';
-import {BigNumberish, BytesLike} from 'ethers';
+import { BigNumber } from 'bignumber.js';
+import { BigNumberish, BytesLike } from 'ethers';
 
 export enum Network {
   Main = 'mainnet',
@@ -33,9 +33,9 @@ export enum HowToCall {
 }
 
 export interface OrderCall {
-  target: string,
-  howToCall: HowToCall,
-  data: string
+  target: string;
+  howToCall: HowToCall;
+  data: string;
 }
 
 export interface ECSignature {
@@ -93,8 +93,8 @@ export type ExchangeMetadata =
   | ExchangeMetadataForBundle;
 
 export interface UnhashedOrder extends WyvernOrder {
-  tokenAddress: string,
-  tokenId: string,
+  tokenAddress: string;
+  tokenId: string;
   paymentToken: string;
   basePrice: BigNumber;
   recipientAddress?: string;
@@ -166,7 +166,7 @@ export interface Order extends UnsignedOrder, Partial<ECSignature> {
 /**
  * Order attributes, including orderbook-specific query options. Used for API serialization
  */
- export interface OrderJSON extends Partial<ECSignature> {
+export interface OrderJSON extends Partial<ECSignature> {
   registry: string;
   exchange: string;
   maker: string;
@@ -178,9 +178,9 @@ export interface Order extends UnsignedOrder, Partial<ECSignature> {
   expirationTime: string;
   salt: string;
 
-  hash?: string,
-  tokenAddress: string,
-  tokenId: string,
+  hash?: string;
+  tokenAddress: string;
+  tokenId: string;
   paymentToken: string;
   basePrice: string;
   recipientAddress?: string;

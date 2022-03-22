@@ -1,10 +1,10 @@
 import * as _ from 'lodash';
-import {ethers, Signer} from 'ethers';
-import {Network} from '../../types';
-import {deployed} from '../deployed';
-import {WyvernRegistryAbi, WyvernRegistryAbi__factory} from '../../typechain';
-import {delay} from '../../utils';
-import {NULL_ADDRESS} from '../../constants';
+import { ethers, Signer } from 'ethers';
+import { Network } from '../../types';
+import { deployed } from '../deployed';
+import { WyvernRegistryAbi, WyvernRegistryAbi__factory } from '../../typechain';
+import { delay } from '../../utils';
+import { NULL_ADDRESS } from '../../constants';
 
 export class WyvernRegistry {
   static getContractAddress(network: Network): string {
