@@ -6,8 +6,6 @@ export const deployed = {
     WyvernExchange: '0x3D7FA4926b8306714A62eA41fCf241a793AA255a',
     WyvernStatic: '0x5B0832f61b4951963C5A9bB60b209ca4f3BCa8A4',
     StaticMarket: '0x740A993dd3C2232ABC2F2926545FaB2955a20E71',
-    SandboxLand: '0x815f7BC6cF9826C676E16d7797de17d2dab0B693',
-    USDT: '0xd2100D572F160cF902de8FDa55578cb757388415',
   },
   mainnet: {},
 };

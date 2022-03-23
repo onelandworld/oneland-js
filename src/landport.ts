@@ -63,6 +63,7 @@ import {
   DEFAULT_MAX_BOUNTY,
   ONELAND_SELLER_BOUNTY_BASIS_POINTS,
 } from './constants';
+import { tokens } from './tokens';
 import { OneLandAPI } from './api';
 
 export class LandPort {
@@ -472,7 +473,6 @@ export class LandPort {
   ): Promise<(ECSignature & { nonce?: number }) | null> {
     signerAddress = signerAddress || order.maker;
 
-    // We need to manually specify each field because OS orders can contain unrelated data
     const orderForSigning = {
       maker: order.maker,
       registry: order.registry,
@@ -701,13 +701,36 @@ export class LandPort {
     };
     // debug('** call data', data);
 
-    const counterdata = (await this._wyvernStaticAbi.populateTransaction.test())
-      .data!;
-    const countercalldata = {
-      target: this._wyvernStaticAbi.address,
-      howToCall: 0,
-      data: counterdata,
-    };
+    let countercalldata;
+    if (sell.paymentToken === NULL_ADDRESS) {
+      const counterdata = (
+        await this._wyvernStaticAbi.populateTransaction.test()
+      ).data!;
+      countercalldata = {
+        target: this._wyvernStaticAbi.address,
+        howToCall: 0,
+        data: counterdata,
+      };
+    } else {
+      // Assume ERC20 token
+      const erc20Abi = ERC20Abi__factory.connect(
+        sell.paymentToken,
+        this._provider
+      );
+      const counterdata = (
+        await erc20Abi.populateTransaction.transferFrom(
+          buy.maker,
+          sell.maker,
+          toEthBigNumber(sell.basePrice)
+        )
+      ).data!;
+      countercalldata = {
+        target: erc20Abi.address,
+        howToCall: 0,
+        data: counterdata,
+      };
+    }
+
     // debug('** counterdata', counterdata);
 
     const args: WyvernAtomicMatchParameters =
@@ -862,7 +885,37 @@ export class LandPort {
     const tokenAddress = order.paymentToken;
 
     if (tokenAddress !== NULL_ADDRESS) {
-      // TODO: check and approve ERC20 payment token
+      const balance = await this.getTokenBalance({
+        accountAddress,
+        tokenAddress,
+      });
+
+      /* NOTE: no buy-side auctions for now, so sell.saleKind === 0 */
+      let minimumAmount = makeBigNumber(order.basePrice);
+      if (counterOrder) {
+        minimumAmount = await this._getRequiredAmountForTakingSellOrder(
+          counterOrder
+        );
+      }
+
+      // Check WETH balance
+      if (balance.toNumber() < minimumAmount.toNumber()) {
+        if (
+          tokenAddress === tokens[this._network].canonicalWrappedEther.address
+        ) {
+          throw new Error('Insufficient balance. You may need to wrap Ether.');
+        } else {
+          throw new Error('Insufficient balance.');
+        }
+      }
+
+      // Check token approval
+      // This can be done at a higher level to show UI
+      await this.approveFungibleToken({
+        accountAddress,
+        tokenAddress,
+        minimumAmount,
+      });
     }
 
     // Check order formation
@@ -883,6 +936,11 @@ export class LandPort {
         "Failed to validate buy order parameters. Make sure you're on the right network!"
       );
     }
+  }
+
+  private async _getRequiredAmountForTakingSellOrder(sell: Order) {
+    // TODO: calculate price based on parameters like sell kind, fee, etc
+    return sell.basePrice;
   }
 
   /**

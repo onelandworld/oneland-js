@@ -145,6 +145,11 @@ export interface OneLandFungibleToken extends Token {
   usdPrice?: string;
 }
 
+export interface NetworkTokens {
+  canonicalWrappedEther: Token;
+  otherTokens: Token[];
+}
+
 /**
  * Orders don't need to be signed if they're pre-approved
  * with a transaction on the contract to approveOrder_

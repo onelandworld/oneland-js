@@ -12,6 +12,7 @@ import {
 } from './types';
 import { orderFromJSON } from './utils';
 import { deployed } from './contracts/deployed';
+import { tokens as OfflineTokens } from './tokens';
 
 // TODO: fetch from backend API service
 export class OneLandAPI {
@@ -80,14 +81,7 @@ export class OneLandAPI {
     retries = 1
   ): Promise<{ tokens: OneLandFungibleToken[] }> {
     return {
-      tokens: [
-        {
-          name: 'Tether USD',
-          symbol: 'USDT',
-          decimals: 6,
-          address: _.get(deployed, `${this._network}.USDT`),
-        },
-      ],
+      tokens: [OfflineTokens[`${this._network}`].canonicalWrappedEther],
     };
   }
 
