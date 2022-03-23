@@ -25,8 +25,15 @@ import {
   WyvernStaticAbi,
   ERC20Abi__factory,
   ERC721Abi__factory,
+  StaticMarketAbi,
+  StaticMarketAbi__factory,
 } from './typechain';
-import { WyvernRegistry, WyvernExchange, WyvernStatic } from './contracts';
+import {
+  WyvernRegistry,
+  WyvernExchange,
+  WyvernStatic,
+  StaticMarket,
+} from './contracts';
 import {
   getMaxOrderExpirationTimestamp,
   validateAndFormatWalletAddress,
@@ -73,6 +80,7 @@ export class LandPort {
   private _wyvernRegistryAbi: WyvernRegistryAbi;
   private _wyvernExchangeAbi: WyvernExchangeAbi;
   private _wyvernStaticAbi: WyvernStaticAbi;
+  private _staticMarketAbi: StaticMarketAbi;
   private logger: (arg: string) => void;
 
   constructor(
@@ -93,6 +101,10 @@ export class LandPort {
       this._provider.getSigner()
     );
     this._wyvernStaticAbi = WyvernStatic.getAbiClass(
+      this._network,
+      this._provider
+    );
+    this._staticMarketAbi = StaticMarket.getAbiClass(
       this._network,
       this._provider
     );
@@ -259,9 +271,12 @@ export class LandPort {
     );
 
     const { staticTarget, staticSelector, staticExtradata } =
-      await this._getStaticCallTargetAndExtraData({
-        asset: oneLandAsset,
-        useTxnOriginStaticCall: waitForHighestBid,
+      this._getStaticCallTargetAndExtraData({
+        paymentTokenAddress,
+        side: OrderSide.Sell,
+        tokenAddress: asset.tokenAddress,
+        tokenId: asset.tokenId,
+        sellingPrice: basePrice,
       });
 
     return {
@@ -586,6 +601,15 @@ export class LandPort {
     accountAddress = validateAndFormatWalletAddress(accountAddress);
     recipientAddress = validateAndFormatWalletAddress(recipientAddress);
 
+    const { staticTarget, staticSelector, staticExtradata } =
+      this._getStaticCallTargetAndExtraData({
+        paymentTokenAddress: order.paymentToken,
+        side: OrderSide.Buy,
+        tokenAddress: order.tokenAddress,
+        tokenId: order.tokenId,
+        sellingPrice: order.basePrice,
+      });
+
     const times = this._getTimeParameters({
       expirationTimestamp: 0,
       isMatchingOrder: true,
@@ -602,9 +626,9 @@ export class LandPort {
       feeMethod: order.feeMethod,
       side: (order.side + 1) % 2,
       saleKind: SaleKind.FixedPrice,
-      staticTarget: order.staticTarget,
-      staticSelector: order.staticSelector,
-      staticExtradata: order.staticExtradata,
+      staticTarget: staticTarget,
+      staticSelector: staticSelector,
+      staticExtradata: staticExtradata,
       recipientAddress,
       tokenAddress: order.tokenAddress,
       tokenId: order.tokenId,
@@ -1542,27 +1566,69 @@ export class LandPort {
     };
   }
 
-  public async _getStaticCallTargetAndExtraData({
-    asset,
-    useTxnOriginStaticCall,
+  public _getStaticCallTargetAndExtraData({
+    paymentTokenAddress,
+    side,
+    tokenAddress,
+    tokenId,
+    sellingPrice,
+    buyingPrice,
   }: {
-    asset: OneLandAsset;
-    useTxnOriginStaticCall: boolean;
-  }): Promise<{
+    paymentTokenAddress: string;
+    side: OrderSide;
+    tokenAddress?: string;
+    tokenId?: string;
+    sellingPrice?: BigNumber;
+    buyingPrice?: BigNumber;
+  }): {
     staticTarget: string;
     staticSelector: string;
     staticExtradata: string;
-  }> {
-    // TODO: Do the real check
-    const staticTarget = WyvernStatic.getContractAddress(this._network);
-    // const iface = new ethers.utils.Interface('function any(bytes memory, address[7] memory, AuthenticatedProxy.HowToCall[2] memory, uint[6] memory, bytes memory, bytes memory)');
-    // const staticSelector = iface.getSighash('any');
-    const staticSelector = this._wyvernStaticAbi.interface.getSighash('any');
+  } {
+    let staticTarget, staticSelector, staticExtradata;
+
+    const paymentToken = paymentTokenAddress.toLocaleLowerCase();
+    const isEther = paymentToken === NULL_ADDRESS;
+    // Swap ERC721 with Ether
+    if (isEther) {
+      staticTarget = this._wyvernStaticAbi.address;
+      staticSelector = this._wyvernStaticAbi.interface.getSighash('anyAddOne');
+      staticExtradata = '0x';
+    } else {
+      // Swap ERC721 with ERC20 token, Sell side
+      if (side === OrderSide.Sell) {
+        staticTarget = this._staticMarketAbi.address;
+        staticSelector = this._staticMarketAbi.interface.getSighash(
+          'ERC721ForERC20(bytes,address[7],uint8[2],uint256[6],bytes,bytes)'
+        );
+        staticExtradata = ethers.utils.defaultAbiCoder.encode(
+          ['address[2]', 'uint256[2]'],
+          [
+            [tokenAddress!, paymentToken],
+            [tokenId, sellingPrice],
+          ]
+        );
+      }
+      // Swap ERC721 with ERC20 token, Buy side
+      else {
+        staticTarget = this._staticMarketAbi.address;
+        staticSelector = this._staticMarketAbi.interface.getSighash(
+          'ERC20ForERC721(bytes,address[7],uint8[2],uint256[6],bytes,bytes)'
+        );
+        staticExtradata = ethers.utils.defaultAbiCoder.encode(
+          ['address[2]', 'uint256[2]'],
+          [
+            [paymentToken, tokenAddress!],
+            [tokenId, buyingPrice],
+          ]
+        );
+      }
+    }
 
     return {
       staticTarget,
       staticSelector,
-      staticExtradata: '0x',
+      staticExtradata,
     };
   }
 }
