@@ -607,7 +607,7 @@ export class LandPort {
         side: OrderSide.Buy,
         tokenAddress: order.tokenAddress,
         tokenId: order.tokenId,
-        sellingPrice: order.basePrice,
+        buyingPrice: order.basePrice,
       });
 
     const times = this._getTimeParameters({
@@ -1601,11 +1601,12 @@ export class LandPort {
         staticSelector = this._staticMarketAbi.interface.getSighash(
           'ERC721ForERC20(bytes,address[7],uint8[2],uint256[6],bytes,bytes)'
         );
+        // debug(tokenAddress!, paymentToken, tokenId, sellingPrice);
         staticExtradata = ethers.utils.defaultAbiCoder.encode(
           ['address[2]', 'uint256[2]'],
           [
             [tokenAddress!, paymentToken],
-            [tokenId, sellingPrice],
+            [tokenId, toEthBigNumber(sellingPrice!)],
           ]
         );
       }
@@ -1619,7 +1620,7 @@ export class LandPort {
           ['address[2]', 'uint256[2]'],
           [
             [paymentToken, tokenAddress!],
-            [tokenId, buyingPrice],
+            [tokenId, toEthBigNumber(buyingPrice!)],
           ]
         );
       }
