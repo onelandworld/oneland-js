@@ -1,6 +1,6 @@
 {
   "name": "@onelandworld/oneland-js",
-  "version": "0.0.6",
+  "version": "0.1.0",
   "description": "oneland js",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -36,9 +36,9 @@
     "branch": "main",
     "cleanup": true,
     "tests": true,
-		"yarn": true,
-		"contents": "."
-	},
+    "yarn": true,
+    "contents": "."
+  },
   "prettier": {
     "printWidth": 80,
     "semi": true,
