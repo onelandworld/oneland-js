@@ -9,6 +9,7 @@ export const MAX_DIGITS_IN_UNSIGNED_256_INT = 78;
 export const MAX_UINT_256 = new BigNumber(2).pow(256).minus(1);
 
 export const MIN_EXPIRATION_MINUTES = 15;
+export const DEFAULT_EXPIRATION_DAYS = 7;
 export const MAX_EXPIRATION_MONTHS = 6;
 export const ORDER_MATCHING_LATENCY_SECONDS = 60 * 60 * 24 * 7;
 

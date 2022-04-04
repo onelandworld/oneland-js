@@ -35,6 +35,7 @@ import {
   StaticMarket,
 } from './contracts';
 import {
+  getDefaultOrderExpirationTimestamp,
   getMaxOrderExpirationTimestamp,
   validateAndFormatWalletAddress,
   toBaseUnitAmount,
@@ -121,7 +122,7 @@ export class LandPort {
     quantity = 1,
     maximumFill = 1,
     listingTime,
-    expirationTime = getMaxOrderExpirationTimestamp(),
+    expirationTime = getDefaultOrderExpirationTimestamp(),
     waitForHighestBid = false,
     englishAuctionReservePrice,
     paymentTokenAddress,
@@ -1591,10 +1592,14 @@ export class LandPort {
     const isEther = paymentToken === NULL_ADDRESS;
     // Swap ERC721 with Ether
     if (isEther) {
-      // TODO: Use `transferERC721Exact` instead of `anyAddOne`
       staticTarget = this._wyvernStaticAbi.address;
-      staticSelector = this._wyvernStaticAbi.interface.getSighash('anyAddOne');
-      staticExtradata = '0x';
+      staticSelector = this._wyvernStaticAbi.interface.getSighash(
+        'transferERC721Exact(bytes,address[7],uint8,uint256[6],bytes)'
+      );
+      staticExtradata = ethers.utils.defaultAbiCoder.encode(
+        ['address', 'uint256'],
+        [tokenAddress!, tokenId]
+      );
     } else {
       // Swap ERC721 with ERC20 token, Sell side
       if (side === OrderSide.Sell) {

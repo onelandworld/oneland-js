@@ -7,6 +7,7 @@ import {
 } from '@ethersproject/abstract-signer';
 import { BigNumber } from 'bignumber.js';
 import {
+  DEFAULT_EXPIRATION_DAYS,
   MAX_EXPIRATION_MONTHS,
   NULL_ADDRESS,
   MAX_DIGITS_IN_UNSIGNED_256_INT,
@@ -27,6 +28,8 @@ import {
 } from '../types';
 import { eip712 } from './eip712';
 
+const dayjs = require('dayjs');
+
 export const eip712Order = {
   name: 'Order',
   fields: [
@@ -42,18 +45,16 @@ export const eip712Order = {
   ],
 };
 
+export const getDefaultOrderExpirationTimestamp = () => {
+  return dayjs().add(DEFAULT_EXPIRATION_DAYS, 'day').unix();
+};
+
 /**
  * The longest time that an order is valid for is six months from the current date
  * @returns unix timestamp
  */
 export const getMaxOrderExpirationTimestamp = () => {
-  const maxExpirationDate = new Date();
-
-  maxExpirationDate.setDate(
-    maxExpirationDate.getDate() + MAX_EXPIRATION_MONTHS
-  );
-
-  return Math.round(maxExpirationDate.getTime() / 1000);
+  return dayjs().add(MAX_EXPIRATION_MONTHS, 'month').unix();
 };
 
 /**
