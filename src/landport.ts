@@ -1591,6 +1591,7 @@ export class LandPort {
     const isEther = paymentToken === NULL_ADDRESS;
     // Swap ERC721 with Ether
     if (isEther) {
+      // TODO: Use `transferERC721Exact` instead of `anyAddOne`
       staticTarget = this._wyvernStaticAbi.address;
       staticSelector = this._wyvernStaticAbi.interface.getSighash('anyAddOne');
       staticExtradata = '0x';
