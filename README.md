@@ -1,12 +1,9 @@
 # Publish to npmjs
 
-[TODO] Use https://github.com/sindresorhus/np
-
 ```sh
-$ yarn build
 $ npm login --registry=https://registry.npmjs.org
 $ npm whoami
-$ npm publish --access public
+$ yarn np 1.0.0 --tag=v1.0.0
 ```
 
 # Development

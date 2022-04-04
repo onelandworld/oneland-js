@@ -37,7 +37,7 @@
     "cleanup": true,
     "tests": true,
 		"yarn": true,
-		"contents": "dist"
+		"contents": "."
 	},
   "prettier": {
     "printWidth": 80,
