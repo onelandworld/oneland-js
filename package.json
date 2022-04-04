@@ -27,6 +27,18 @@
       "pre-commit": "tsdx lint"
     }
   },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org",
+    "access": "public"
+  },
+  "np": {
+    "anyBranch": false,
+    "branch": "main",
+    "cleanup": true,
+    "tests": true,
+		"yarn": true,
+		"contents": "dist"
+	},
   "prettier": {
     "printWidth": 80,
     "semi": true,
@@ -64,6 +76,7 @@
     "eslint-plugin-prettier": "3.1.4",
     "gts": "^3.1.0",
     "husky": "^7.0.4",
+    "np": "^7.6.1",
     "size-limit": "^7.0.8",
     "ts-node": "^10.0.0",
     "tsdx": "^0.14.1",

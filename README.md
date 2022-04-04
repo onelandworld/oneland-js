@@ -4,7 +4,7 @@
 
 ```sh
 $ yarn build
-$ npm login --registry=https://registry.npmjs.org/
+$ npm login --registry=https://registry.npmjs.org
 $ npm whoami
 $ npm publish --access public
 ```
@@ -22,7 +22,7 @@ $ yarn
 $ yarn add --dev typechain
 $ yarn add --dev @typechain/ethers-v5
 
-Copy ABI definitions from etherscan, and put to src/abi/**/*.abi.json
+# Copy whole or part of ABI definitions from etherscan, and put to src/abi/**/*.abi.json
 
 $ npx typechain --target ethers-v5 --out-dir src/typechain --show-stack-traces src/abi/**/*.abi.json
 ```
