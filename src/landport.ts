@@ -644,6 +644,29 @@ export class LandPort {
     return matchingOrder;
   }
 
+  /**
+   * Cancel an order on-chain, preventing it from ever being fulfilled.
+   * @param order The order to cancel
+   * @param accountAddress The order maker's wallet address
+   */
+  public async cancelOrder({
+    order,
+    accountAddress,
+  }: {
+    order: Order;
+    accountAddress: string;
+  }): Promise<void> {
+    const hash = getOrderHash(order);
+    const trans = await this._wyvernExchangeAbi.setOrderFill_(
+      hash,
+      toEthBigNumber(order.maximumFill),
+      {
+        from: accountAddress,
+      }
+    );
+    await trans.wait();
+  }
+
   private _getMetadata(order: Order, referrerAddress?: string) {
     const referrer = referrerAddress || order.metadata.referrerAddress;
     if (referrer && ethers.utils.isAddress(referrer)) {
@@ -1593,13 +1616,19 @@ export class LandPort {
     // Swap ERC721 with Ether
     if (isEther) {
       staticTarget = this._wyvernStaticAbi.address;
-      staticSelector = this._wyvernStaticAbi.interface.getSighash(
-        'transferERC721Exact(bytes,address[7],uint8,uint256[6],bytes)'
-      );
-      staticExtradata = ethers.utils.defaultAbiCoder.encode(
-        ['address', 'uint256'],
-        [tokenAddress!, tokenId]
-      );
+      if (side === OrderSide.Sell) {
+        staticSelector = this._wyvernStaticAbi.interface.getSighash(
+          'transferERC721Exact(bytes,address[7],uint8,uint256[6],bytes)'
+        );
+        staticExtradata = ethers.utils.defaultAbiCoder.encode(
+          ['address', 'uint256'],
+          [tokenAddress!, tokenId]
+        );
+      } else {
+        staticSelector =
+          this._wyvernStaticAbi.interface.getSighash('anyAddOne');
+        staticExtradata = '0x';
+      }
     } else {
       // Swap ERC721 with ERC20 token, Sell side
       if (side === OrderSide.Sell) {
