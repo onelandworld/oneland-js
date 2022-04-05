@@ -39,6 +39,18 @@ $ yarn lint
 $ yarn fix
 ```
 
+## Testing
+
+### Create env file
+
+Create ./test/.env file with same environment variables to ./test/.env-example
+
+### Run command
+
+```sh
+$ yarn test
+```
+
 # Develop and Use Locally (Recommended)
 
 ## Create global symbol link

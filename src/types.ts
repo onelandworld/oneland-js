@@ -203,7 +203,6 @@ export interface OrderJSON extends Partial<ECSignature> {
 export interface OneLandAPIConfig {
   network?: Network;
   apiKey?: string;
-  apiBaseUrl?: string;
 }
 
 // Wyvern Schemas
