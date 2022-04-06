@@ -11,16 +11,6 @@ export const RINKEBY_SANDBOX_LAND_TOKEN_ID = 18884;
 export const RINKEBY_WETH_ADDRESS =
   '0xc778417E063141139Fce010982780140Aa0cD5Ab';
 
-export const Alice: Account = {
-  address: '0xB6Ec64c617f0C4BFb886eE993d80C6234673e845',
-  secret: process.env.ALICE_SECRET || '',
-};
-
-export const Bob: Account = {
-  address: '0x64A1337cB99a170692f4Eaa3A42730cEF525ffc3',
-  secret: process.env.BOB_SECRET || '',
-};
-
 export const provider = new ethers.providers.JsonRpcProvider(
   `https://rinkeby.infura.io/v3/${process.env.INFURA_PROJECT_ID}`,
   'rinkeby'
@@ -33,3 +23,13 @@ export const wethAbi = ERC20Abi__factory.connect(
   RINKEBY_WETH_ADDRESS,
   provider
 );
+
+export const Alice: Account = {
+  address: '0xB6Ec64c617f0C4BFb886eE993d80C6234673e845',
+  signer: new ethers.Wallet(process.env.ALICE_SECRET, provider),
+};
+
+export const Bob: Account = {
+  address: '0x64A1337cB99a170692f4Eaa3A42730cEF525ffc3',
+  signer: new ethers.Wallet(process.env.BOB_SECRET, provider),
+};

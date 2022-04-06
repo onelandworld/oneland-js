@@ -1,4 +1,6 @@
 import { ethers } from 'ethers';
+/* eslint-disable node/no-extraneous-import */
+import { TypedDataSigner } from '@ethersproject/abstract-signer';
 import { BigNumber } from 'bignumber.js';
 import {
   Network,
@@ -76,7 +78,8 @@ import { OneLandAPI } from './api';
 
 export class LandPort {
   private _network: Network;
-  private _provider: ethers.providers.Web3Provider;
+  private _provider: ethers.providers.JsonRpcProvider;
+  private _signer: ethers.Signer & TypedDataSigner;
   private readonly api: OneLandAPI;
   private _wyvernRegistryAbi: WyvernRegistryAbi;
   private _wyvernExchangeAbi: WyvernExchangeAbi;
@@ -85,12 +88,14 @@ export class LandPort {
   private logger: (arg: string) => void;
 
   constructor(
-    provider: ethers.providers.Web3Provider,
+    provider: ethers.providers.JsonRpcProvider,
     apiConfig: OneLandAPIConfig,
+    signer?: ethers.Signer & TypedDataSigner,
     logger?: (arg: string) => void
   ) {
     apiConfig.network = apiConfig.network || Network.Main;
     this._provider = provider;
+    this._signer = signer;
     this._network = apiConfig.network;
     this.api = new OneLandAPI(apiConfig);
     this._wyvernRegistryAbi = WyvernRegistry.getAbiClass(
@@ -99,7 +104,7 @@ export class LandPort {
     );
     this._wyvernExchangeAbi = WyvernExchange.getAbiClass(
       this._network,
-      this._provider.getSigner()
+      this._provider
     );
     this._wyvernStaticAbi = WyvernStatic.getAbiClass(
       this._network,
@@ -385,6 +390,24 @@ export class LandPort {
     }
   }
 
+  public async _getProxy(accountAddress: string) {
+    let proxyAddress = await WyvernRegistry.getProxy(
+      this._wyvernRegistryAbi,
+      accountAddress,
+      0
+    );
+
+    if (!proxyAddress) {
+      proxyAddress = await WyvernRegistry.registerProxy(
+        this._wyvernRegistryAbi.connect(
+          this._signer || this._provider.getSigner(accountAddress)
+        ),
+        accountAddress
+      );
+    }
+    return proxyAddress;
+  }
+
   public async _approveAll({
     schemaNames,
     wyAssets,
@@ -396,22 +419,7 @@ export class LandPort {
     accountAddress: string;
     proxyAddress?: string;
   }) {
-    proxyAddress =
-      proxyAddress ||
-      (await WyvernRegistry.getProxy(
-        this._wyvernRegistryAbi,
-        accountAddress,
-        0
-      )) ||
-      undefined;
-    debug(`_approveAll, account: ${accountAddress}, proxy: ${proxyAddress}`);
-
-    if (!proxyAddress) {
-      proxyAddress = await WyvernRegistry.registerProxy(
-        this._wyvernRegistryAbi,
-        accountAddress
-      );
-    }
+    proxyAddress = proxyAddress || (await this._getProxy(accountAddress));
     const contractsWithApproveAll: Set<string> = new Set();
 
     debug(`_approveAll, wyAssets: ${wyAssets}`);
@@ -516,7 +524,7 @@ export class LandPort {
     // debug('signTypedDataAsync, value', value);
 
     const ecSignature = await signTypedDataAsync(
-      this._provider.getSigner(),
+      this._signer || this._provider.getSigner(signerAddress),
       domain,
       types,
       value
@@ -545,6 +553,8 @@ export class LandPort {
     referrerAddress?: string;
   }): Promise<string> {
     // debug('fulfillOrder', order);
+    const proxyAccount = await this._getProxy(accountAddress);
+    debug(`fulfillOrder, ${accountAddress} proxy: ${proxyAccount}`);
 
     const matchingOrder = this._makeMatchingOrder({
       order,
@@ -732,7 +742,7 @@ export class LandPort {
     // Construct call data
     const erc721Abi = ERC721Abi__factory.connect(
       sell.tokenAddress,
-      this._provider.getSigner()
+      this._signer || this._provider.getSigner(sell.maker)
     );
     const recipientAddress = buy.recipientAddress || accountAddress;
     const data = (
@@ -801,7 +811,10 @@ export class LandPort {
       );
 
     // debug('_wyvernExchangeAbi.atomicMatch_', args);
-    const trans = await this._wyvernExchangeAbi.atomicMatch_(
+    const wyvernExchangeAbi = this._wyvernExchangeAbi.connect(
+      this._signer || this._provider.getSigner(accountAddress)
+    );
+    const trans = await wyvernExchangeAbi.atomicMatch_(
       args[0],
       args[1],
       args[2],
@@ -1173,7 +1186,7 @@ export class LandPort {
     // TODO: Handle ERC1155 approval
     const erc721Abi = ERC721Abi__factory.connect(
       tokenAddress,
-      this._provider.getSigner()
+      this._signer || this._provider.getSigner(accountAddress)
     );
     const isApprovedForAll = await erc721Abi.isApprovedForAll(
       accountAddress,
@@ -1248,7 +1261,7 @@ export class LandPort {
 
     const erc20Abi = ERC20Abi__factory.connect(
       tokenAddress,
-      this._provider.getSigner()
+      this._signer || this._provider.getSigner(accountAddress)
     );
     const approvedAmount = await erc20Abi.allowance(
       accountAddress,
@@ -1615,20 +1628,10 @@ export class LandPort {
     const isEther = paymentToken === NULL_ADDRESS;
     // Swap ERC721 with Ether
     if (isEther) {
+      // TODO: Try to use `transferERC721Exact`
       staticTarget = this._wyvernStaticAbi.address;
-      if (side === OrderSide.Sell) {
-        staticSelector = this._wyvernStaticAbi.interface.getSighash(
-          'transferERC721Exact(bytes,address[7],uint8,uint256[6],bytes)'
-        );
-        staticExtradata = ethers.utils.defaultAbiCoder.encode(
-          ['address', 'uint256'],
-          [tokenAddress!, tokenId]
-        );
-      } else {
-        staticSelector =
-          this._wyvernStaticAbi.interface.getSighash('anyAddOne');
-        staticExtradata = '0x';
-      }
+      staticSelector = this._wyvernStaticAbi.interface.getSighash('anyAddOne');
+      staticExtradata = '0x';
     } else {
       // Swap ERC721 with ERC20 token, Sell side
       if (side === OrderSide.Sell) {
