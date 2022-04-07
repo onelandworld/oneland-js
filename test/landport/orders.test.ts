@@ -102,6 +102,16 @@ describe('landport orders', () => {
   }, 600000 /*10 minutes timeout*/);
 
   // TODO
+  test('Could not sell NFT with 0 ETH Price', async () => {
+    expect(1 + 1).toEqual(2);
+  });
+
+  // TODO
+  test('Could not sell NFT with 0 ERC20 Price', async () => {
+    expect(1 + 1).toEqual(2);
+  });
+
+  // TODO
   test('Could not sell not-owned NFT', async () => {
     expect(1 + 1).toEqual(2);
   });
