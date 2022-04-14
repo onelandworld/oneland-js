@@ -1,3 +1,4 @@
+import * as _ from 'lodash';
 import { ethers } from 'ethers';
 /* eslint-disable node/no-extraneous-import */
 import { TypedDataSigner } from '@ethersproject/abstract-signer';
@@ -11,7 +12,7 @@ import {
   OrderSide,
   OneLandAPIConfig,
   FeeMethod,
-  ComputedFees,
+  OneLandFees,
   WyvernSchemaName,
   WyvernAsset,
   WyvernNFTAsset,
@@ -68,10 +69,7 @@ import {
   ORDER_MATCHING_LATENCY_SECONDS,
   INVERSE_BASIS_POINT,
   ONELAND_FEE_RECIPIENT,
-  DEFAULT_BUYER_FEE_BASIS_POINTS,
-  DEFAULT_SELLER_FEE_BASIS_POINTS,
-  DEFAULT_MAX_BOUNTY,
-  ONELAND_SELLER_BOUNTY_BASIS_POINTS,
+  DEFAULT_ONELAND_FEE_BASIS_POINTS,
 } from './constants';
 import { tokens } from './tokens';
 import { OneLandAPI } from './api';
@@ -162,7 +160,6 @@ export class LandPort {
       waitForHighestBid,
       englishAuctionReservePrice,
       paymentTokenAddress: paymentTokenAddress || NULL_ADDRESS,
-      extraBountyBasisPoints,
       buyerAddress: buyerAddress || NULL_ADDRESS,
     });
     debug('_makeSellOrder', order);
@@ -205,7 +202,6 @@ export class LandPort {
     waitForHighestBid,
     englishAuctionReservePrice = 0,
     paymentTokenAddress,
-    extraBountyBasisPoints,
     buyerAddress,
   }: {
     asset: Asset;
@@ -219,7 +215,6 @@ export class LandPort {
     listingTime?: number;
     expirationTime?: number;
     paymentTokenAddress: string;
-    extraBountyBasisPoints: number;
     buyerAddress: string;
   }): Promise<UnhashedOrder> {
     accountAddress = validateAndFormatWalletAddress(accountAddress);
@@ -228,16 +223,6 @@ export class LandPort {
 
     const wyAsset = getWyvernAsset(asset, quantityBN);
     const oneLandAsset = await this.api.getAsset(asset);
-
-    const {
-      totalSellerFeeBasisPoints,
-      totalBuyerFeeBasisPoints,
-      sellerBountyBasisPoints,
-    } = await this.computeFees({
-      asset: oneLandAsset,
-      side: OrderSide.Sell,
-      extraBountyBasisPoints,
-    });
 
     const orderSaleKind =
       endAmount !== null && endAmount !== startAmount
@@ -261,20 +246,11 @@ export class LandPort {
       waitingForBestCounterOrder: waitForHighestBid,
     });
 
-    const {
-      makerRelayerFee,
-      takerRelayerFee,
-      makerProtocolFee,
-      takerProtocolFee,
-      makerReferrerFee,
-      feeRecipient,
-      feeMethod,
-    } = this._getSellFeeParameters(
-      totalBuyerFeeBasisPoints,
-      totalSellerFeeBasisPoints,
-      waitForHighestBid,
-      sellerBountyBasisPoints
-    );
+    const { amount, onelandFee, onelandFeeRecipient, devFee, devFeeRecipient } =
+      await this.computeFees({
+        asset: oneLandAsset,
+        basePrice,
+      });
 
     const { staticTarget, staticSelector, staticExtradata } =
       this._getStaticCallTargetAndExtraData({
@@ -283,26 +259,24 @@ export class LandPort {
         tokenAddress: asset.tokenAddress,
         tokenId: asset.tokenId,
         sellingPrice: basePrice,
+        amount,
+        onelandFee,
+        onelandFeeRecipient,
+        devFee,
+        devFeeRecipient,
       });
 
     return {
       registry: this._wyvernRegistryAbi.address,
       exchange: this._wyvernExchangeAbi.address,
       maker: accountAddress,
-      // taker: buyerAddress,
       quantity: quantityBN,
       maximumFill: maximumFillBN,
-      // makerRelayerFee,
-      // takerRelayerFee,
-      // makerProtocolFee,
-      // takerProtocolFee,
-      // makerReferrerFee,
-      // waitingForBestCounterOrder: waitForHighestBid,
-      // englishAuctionReservePrice: reservePrice
-      //   ? BigNumber.from(reservePrice)
-      //   : undefined,
-      feeMethod,
-      // feeRecipient,
+      amount,
+      onelandFee,
+      onelandFeeRecipient,
+      devFee,
+      devFeeRecipient,
       side: OrderSide.Sell,
       saleKind: orderSaleKind,
       staticTarget,
@@ -312,7 +286,6 @@ export class LandPort {
       tokenId: asset.tokenId,
       paymentToken,
       basePrice,
-      // extra,
       listingTime: times.listingTime,
       expirationTime: times.expirationTime,
       salt: generatePseudoRandomSalt(),
@@ -619,6 +592,11 @@ export class LandPort {
         tokenAddress: order.tokenAddress,
         tokenId: order.tokenId,
         buyingPrice: order.basePrice,
+        amount: order.amount,
+        onelandFee: order.onelandFee,
+        onelandFeeRecipient: order.onelandFeeRecipient,
+        devFee: order.devFee,
+        devFeeRecipient: order.devFeeRecipient,
       });
 
     const times = this._getTimeParameters({
@@ -626,25 +604,26 @@ export class LandPort {
       isMatchingOrder: true,
     });
 
-    // const feeRecipient =  ONELAND_FEE_RECIPIENT;
-
     const matchingOrder: UnhashedOrder = {
       registry: order.registry,
       exchange: order.exchange,
       maker: accountAddress,
       quantity: order.quantity,
       maximumFill: order.maximumFill,
-      feeMethod: order.feeMethod,
       side: (order.side + 1) % 2,
       saleKind: SaleKind.FixedPrice,
       staticTarget: staticTarget,
       staticSelector: staticSelector,
       staticExtradata: staticExtradata,
-      recipientAddress,
       tokenAddress: order.tokenAddress,
       tokenId: order.tokenId,
       paymentToken: order.paymentToken,
       basePrice: order.basePrice,
+      amount: order.amount,
+      onelandFee: order.onelandFee,
+      onelandFeeRecipient: order.onelandFeeRecipient,
+      devFee: order.devFee,
+      devFeeRecipient: order.devFeeRecipient,
       listingTime: times.listingTime,
       expirationTime: times.expirationTime,
       salt: generatePseudoRandomSalt(),
@@ -744,7 +723,7 @@ export class LandPort {
       sell.tokenAddress,
       this._signer || this._provider.getSigner(sell.maker)
     );
-    const recipientAddress = buy.recipientAddress || accountAddress;
+    const recipientAddress = accountAddress;
     const data = (
       await erc721Abi.populateTransaction.transferFrom(
         sell.maker,
@@ -1467,83 +1446,50 @@ export class LandPort {
    * Compute the fees for an order
    * @param param0 __namedParameters
    * @param asset Asset to use for fees. May be blank ONLY for multi-collection bundles.
-   * @param side The side of the order (buy or sell)
-   * @param accountAddress The account to check fees for (useful if fees differ by account, like transfer fees)
-   * @param extraBountyBasisPoints The basis points to add for the bounty. Will throw if it exceeds the assets' contract's OneLand fee.
    */
   public async computeFees({
     asset,
-    side,
-    accountAddress,
-    extraBountyBasisPoints = 0,
+    basePrice,
   }: {
-    asset?: OneLandAsset;
-    side: OrderSide;
-    accountAddress?: string;
-    extraBountyBasisPoints?: number;
-  }): Promise<ComputedFees> {
-    let onelandBuyerFeeBasisPoints = DEFAULT_BUYER_FEE_BASIS_POINTS;
-    let onelandSellerFeeBasisPoints = DEFAULT_SELLER_FEE_BASIS_POINTS;
-    let devBuyerFeeBasisPoints = 0;
-    let devSellerFeeBasisPoints = 0;
-    let transferFee = new BigNumber(0);
-    let transferFeeTokenAddress = null;
-    let maxTotalBountyBPS = DEFAULT_MAX_BOUNTY;
+    asset: OneLandAsset;
+    basePrice: BigNumber;
+  }): Promise<{
+    amount: BigNumber;
+    onelandFee: BigNumber;
+    onelandFeeRecipient: string;
+    devFee: BigNumber;
+    devFeeRecipient: string;
+  }> {
+    const onelandFeeRecipient = ONELAND_FEE_RECIPIENT;
 
-    if (asset) {
-      onelandBuyerFeeBasisPoints =
-        +asset.collection.onelandBuyerFeeBasisPoints || 0;
-      onelandSellerFeeBasisPoints =
-        +asset.collection.onelandSellerFeeBasisPoints || 0;
-      devBuyerFeeBasisPoints = +asset.collection.devBuyerFeeBasisPoints || 0;
-      devSellerFeeBasisPoints = +asset.collection.devSellerFeeBasisPoints || 0;
-
-      maxTotalBountyBPS = onelandSellerFeeBasisPoints;
+    let onelandFeeBasisPoints = DEFAULT_ONELAND_FEE_BASIS_POINTS;
+    if (_.get(asset, 'collection.onelandFeeBasisPoints', -1) >= 0) {
+      onelandFeeBasisPoints = asset.collection.onelandFeeBasisPoints;
     }
-
-    // Compute transferFrom fees
-    if (side === OrderSide.Sell && asset) {
-      // Server-side knowledge
-      transferFee = asset.transferFee
-        ? new BigNumber(asset.transferFee)
-        : transferFee;
-      transferFeeTokenAddress = asset.transferFeePaymentToken
-        ? asset.transferFeePaymentToken.address
-        : transferFeeTokenAddress;
+    let devFeeBasisPoints = 0;
+    if (_.get(asset, 'collection.devFeeBasisPoints', -1) >= 0) {
+      devFeeBasisPoints = asset.collection.devFeeBasisPoints;
     }
+    const devFeeRecipient = _.get(
+      asset,
+      'collection.payoutAddress',
+      NULL_ADDRESS
+    );
 
-    // Compute bounty
-    const sellerBountyBasisPoints =
-      side === OrderSide.Sell ? extraBountyBasisPoints : 0;
-
-    // Check that bounty is in range of the oneland fee
-    const bountyTooLarge =
-      sellerBountyBasisPoints + ONELAND_SELLER_BOUNTY_BASIS_POINTS >
-      maxTotalBountyBPS;
-    if (sellerBountyBasisPoints > 0 && bountyTooLarge) {
-      let errorMessage = `Total bounty exceeds the maximum for this asset type (${
-        maxTotalBountyBPS / 100
-      }%).`;
-      if (maxTotalBountyBPS >= ONELAND_SELLER_BOUNTY_BASIS_POINTS) {
-        errorMessage += ` Remember that OneLand will add ${
-          ONELAND_SELLER_BOUNTY_BASIS_POINTS / 100
-        }% for referrers with OneLand accounts!`;
-      }
-      throw new Error(errorMessage);
-    }
+    const onelandFee = basePrice
+      .times(new BigNumber(onelandFeeBasisPoints))
+      .div(new BigNumber(10000));
+    const devFee = basePrice
+      .times(new BigNumber(devFeeBasisPoints))
+      .div(new BigNumber(10000));
+    const amount = basePrice.minus(onelandFee).minus(devFee);
 
     return {
-      totalBuyerFeeBasisPoints:
-        onelandBuyerFeeBasisPoints + devBuyerFeeBasisPoints,
-      totalSellerFeeBasisPoints:
-        onelandSellerFeeBasisPoints + devSellerFeeBasisPoints,
-      onelandBuyerFeeBasisPoints,
-      onelandSellerFeeBasisPoints,
-      devBuyerFeeBasisPoints,
-      devSellerFeeBasisPoints,
-      sellerBountyBasisPoints,
-      transferFee,
-      transferFeeTokenAddress,
+      amount,
+      onelandFee,
+      onelandFeeRecipient,
+      devFee,
+      devFeeRecipient,
     };
   }
 
@@ -1572,37 +1518,6 @@ export class LandPort {
     }
   }
 
-  public _getSellFeeParameters(
-    totalBuyerFeeBasisPoints: number,
-    totalSellerFeeBasisPoints: number,
-    waitForHighestBid: boolean,
-    sellerBountyBasisPoints = 0
-  ) {
-    // Use buyer as the maker when it's an English auction, so Wyvern sets prices correctly
-    const feeRecipient = waitForHighestBid
-      ? NULL_ADDRESS
-      : ONELAND_FEE_RECIPIENT;
-
-    // Swap maker/taker fees when it's an English auction,
-    // since these sell orders are takers not makers
-    const makerRelayerFee = waitForHighestBid
-      ? new BigNumber(totalBuyerFeeBasisPoints)
-      : new BigNumber(totalSellerFeeBasisPoints);
-    const takerRelayerFee = waitForHighestBid
-      ? new BigNumber(totalSellerFeeBasisPoints)
-      : new BigNumber(totalBuyerFeeBasisPoints);
-
-    return {
-      makerRelayerFee,
-      takerRelayerFee,
-      makerProtocolFee: new BigNumber(0),
-      takerProtocolFee: new BigNumber(0),
-      makerReferrerFee: new BigNumber(sellerBountyBasisPoints),
-      feeRecipient,
-      feeMethod: FeeMethod.SplitFee,
-    };
-  }
-
   public _getStaticCallTargetAndExtraData({
     paymentTokenAddress,
     side,
@@ -1610,6 +1525,11 @@ export class LandPort {
     tokenId,
     sellingPrice,
     buyingPrice,
+    amount,
+    onelandFee,
+    onelandFeeRecipient,
+    devFee,
+    devFeeRecipient,
   }: {
     paymentTokenAddress: string;
     side: OrderSide;
@@ -1617,6 +1537,11 @@ export class LandPort {
     tokenId?: string;
     sellingPrice?: BigNumber;
     buyingPrice?: BigNumber;
+    amount: BigNumber;
+    onelandFee: BigNumber;
+    onelandFeeRecipient: string;
+    devFee: BigNumber;
+    devFeeRecipient: string;
   }): {
     staticTarget: string;
     staticSelector: string;

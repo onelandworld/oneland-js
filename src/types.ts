@@ -97,9 +97,13 @@ export interface UnhashedOrder extends WyvernOrder {
   tokenId: string;
   paymentToken: string;
   basePrice: BigNumber;
-  recipientAddress?: string;
 
-  feeMethod: FeeMethod;
+  amount: BigNumber;
+  onelandFee: BigNumber;
+  onelandFeeRecipient: string;
+  devFee: BigNumber;
+  devFeeRecipient: string;
+
   side: OrderSide;
   saleKind: SaleKind;
   quantity: BigNumber;
@@ -188,9 +192,12 @@ export interface OrderJSON extends Partial<ECSignature> {
   tokenId: string;
   paymentToken: string;
   basePrice: string;
-  recipientAddress?: string;
+  amount: string;
+  onelandFee: string;
+  onelandFeeRecipient: string;
+  devFee: string;
+  devFeeRecipient: string;
 
-  feeMethod: number;
   side: number;
   saleKind: number;
   quantity: string;
@@ -233,35 +240,26 @@ export interface Asset {
 /**
  * The basis point values of each type of fee
  */
-interface OneLandFees {
+export interface OneLandFees {
   // Fee for OneLand levied on sellers
-  onelandSellerFeeBasisPoints: number;
-  // Fee for OneLand levied on buyers
-  onelandBuyerFeeBasisPoints: number;
+  onelandFeeBasisPoints: number;
+
   // Fee for the collection owner levied on sellers
-  devSellerFeeBasisPoints: number;
-  // Fee for the collection owner levied on buyers
-  devBuyerFeeBasisPoints: number;
+  devFeeBasisPoints: number;
 }
 
-/**
- * Fully computed fees including bounties and transfer fees
- */
-export interface ComputedFees extends OneLandFees {
-  // Total fees. dev + oneland
-  totalBuyerFeeBasisPoints: number;
-  totalSellerFeeBasisPoints: number;
-
-  // Fees that the item's creator takes on every transfer
-  transferFee: BigNumber;
-  transferFeeTokenAddress: string | null;
-
-  // Fees that go to whoever refers the order to the taker.
-  // Comes out of OneLand fees
-  sellerBountyBasisPoints: number;
+export interface OneLandCollection extends OneLandFees {
+  // Name of the collection
+  name: string;
+  // Slug, used in URL
+  slug: string;
+  // Date collection was created
+  createdDate: Date;
+  // Description of the collection
+  description: string;
+  // Address for dev fee payouts
+  payoutAddress?: string;
 }
-
-export type OneLandCollection = Partial<OneLandFees>;
 
 export enum AssetContractType {
   Fungible = 'fungible',

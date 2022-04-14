@@ -186,7 +186,6 @@ export function getOrderHash(order: UnhashedOrder) {
     maker: order.maker.toLowerCase(),
     side: order.side.toString(),
     saleKind: order.saleKind.toString(),
-    feeMethod: order.feeMethod.toString(),
   };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return hashOrder(orderWithStringTypes as any);
@@ -332,9 +331,13 @@ export const orderFromJSON = (order: OrderJSON): Order => {
     hash: order.hash,
     paymentToken: order.paymentToken,
     basePrice: new BigNumber(order.basePrice),
-    recipientAddress: order.recipientAddress,
 
-    feeMethod: order.feeMethod,
+    amount: new BigNumber(order.amount),
+    onelandFee: new BigNumber(order.onelandFee),
+    onelandFeeRecipient: order.onelandFeeRecipient,
+    devFee: new BigNumber(order.devFee),
+    devFeeRecipient: order.devFeeRecipient,
+
     side: order.side,
     saleKind: order.saleKind,
     quantity: new BigNumber(order.quantity),
@@ -376,9 +379,13 @@ export const orderToJSON = (order: Order): OrderJSON => {
     hash: order.hash,
     paymentToken: order.paymentToken,
     basePrice: order.basePrice.toFixed(),
-    recipientAddress: order.recipientAddress,
 
-    feeMethod: order.feeMethod,
+    amount: order.amount.toFixed(),
+    onelandFee: order.onelandFee.toFixed(),
+    onelandFeeRecipient: order.onelandFeeRecipient,
+    devFee: order.devFee.toFixed(),
+    devFeeRecipient: order.devFeeRecipient,
+
     side: order.side,
     saleKind: order.saleKind,
     quantity: order.quantity.toFixed(),
