@@ -133,6 +133,10 @@ export class LandPort {
     waitForHighestBid = false,
     englishAuctionReservePrice,
     paymentTokenAddress,
+    // extraBountyBasisPoints = 0,
+    // buyerAddress,
+    // buyerEmail,
+    onStep,
   }: {
     asset: Asset;
     accountAddress: string;
@@ -145,11 +149,17 @@ export class LandPort {
     englishAuctionReservePrice?: number;
     waitForHighestBid?: boolean;
     paymentTokenAddress?: string;
+    onStep?: (step: number) => void;
   }) {
     if (!paymentTokenAddress || paymentTokenAddress === NULL_ADDRESS) {
       throw new Error('Trading with ETH is not supported');
     }
-
+    let step = 0;
+    function nextStep<T>(param?: T) {
+      step++;
+      onStep && onStep(step);
+      return param;
+    }
     const order = await this._makeSellOrder({
       asset,
       quantity,
@@ -166,6 +176,7 @@ export class LandPort {
     debug('_makeSellOrder', order);
 
     await this._sellOrderValidationAndApprovals({ order, accountAddress });
+    nextStep()
 
     const hashedOrder = {
       ...order,
@@ -174,6 +185,7 @@ export class LandPort {
     let signature;
     try {
       signature = await this.authorizeOrder(hashedOrder);
+      nextStep()
     } catch (error) {
       console.error(error);
       throw new Error('You declined to authorize your auction');
@@ -184,7 +196,7 @@ export class LandPort {
       ...signature,
     };
 
-    return this.validateAndPostOrder(orderWithSignature);
+    return this.validateAndPostOrder(orderWithSignature).then(nextStep);
   }
 
   public async _makeSellOrder({
