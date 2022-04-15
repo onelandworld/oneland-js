@@ -1,9 +1,10 @@
 import * as _ from 'lodash';
-import { BigNumber as EthBigNumber } from 'ethers';
+import { ethers, BigNumber as EthBigNumber } from 'ethers';
 import {
   withAliceOrBobOwningLand,
   withAliceAndBobHavingEther,
   withAliceAndBobHavingWETH,
+  getWETHBalance
 } from '../utils';
 import {
   RINKEBY_WETH_ADDRESS,
@@ -16,7 +17,7 @@ import { LandPort, Network, WyvernSchemaName } from '../../src';
 
 describe('landport orders', () => {
   // Note: Use test.only(...) to run specific test only
-  test('Swapping NFT with Ether Not Works', async () => {
+  test('Swapping NFT with Ether not works', async () => {
     const [landOwner] = await withAliceOrBobOwningLand();
 
     // Create Sell Order
@@ -40,10 +41,10 @@ describe('landport orders', () => {
     ).rejects.toThrow('Trading with ETH is not supported');
   }, 600000 /*10 minutes timeout*/);
 
-  test('Swapping NFT with WETH Works', async () => {
-    const [landOwner, landBuyer] = await withAliceOrBobOwningLand();
+  test('Swapping NFT with WETH works', async () => {
+    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
-    await withAliceAndBobHavingWETH();
+    const [landOwnerWETHBalance, landTakerWETHBalance] = await withAliceAndBobHavingWETH(landOwner, landTaker);
 
     // Create Sell Order
     const asset = {
@@ -51,6 +52,7 @@ describe('landport orders', () => {
       tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
+    const price = 0.01;
     const landOwnerPort = new LandPort(
       provider,
       { network: Network.Rinkeby },
@@ -60,31 +62,38 @@ describe('landport orders', () => {
     const order = await landOwnerPort.createSellOrder({
       asset,
       accountAddress: landOwner.address,
-      startAmount: 0.01,
+      startAmount: price,
       paymentTokenAddress: RINKEBY_WETH_ADDRESS,
     });
 
     // Fulfill order
-    const landBuyerPort = new LandPort(
+    const landTakerPort = new LandPort(
       provider,
       { network: Network.Rinkeby },
-      landBuyer.signer,
+      landTaker.signer,
       (msg: any) => console.log(msg)
     );
-    await landBuyerPort.fulfillOrder({
+    await landTakerPort.fulfillOrder({
       order,
-      accountAddress: landBuyer.address,
+      accountAddress: landTaker.address,
     });
 
     // Assert NFT is transferred
     const landOwnerAddress = await sandboxLandAbi.ownerOf(
       EthBigNumber.from(RINKEBY_SANDBOX_LAND_TOKEN_ID)
     );
-    expect(landOwnerAddress).toEqual(landBuyer.address);
+    expect(landOwnerAddress).toEqual(landTaker.address);
+
+    // Asset WETH is transferred
+    const updatedLandOwnerWETHBalance = await getWETHBalance(landOwner.address);
+    expect(updatedLandOwnerWETHBalance).toEqual(landOwnerWETHBalance + price);
+    const updatedLandTakerWETHBalance = await getWETHBalance(landTaker.address);
+    expect(updatedLandTakerWETHBalance).toEqual(landTakerWETHBalance - price);
+
   }, 600000 /*10 minutes timeout*/);
 
   // TODO
-  test('Could not sell NFT with 0 ERC20 Price', async () => {
+  test('Could not sell NFT with 0 ERC20 price', async () => {
     expect(1 + 1).toEqual(2);
   });
 

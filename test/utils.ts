@@ -17,8 +17,8 @@ export const withAliceOrBobOwningLand = async () => {
   );
   expect([Alice.address, Bob.address]).toContain(landOwnerAddress);
   const landOwner: Account = landOwnerAddress === Alice.address ? Alice : Bob;
-  const landBuyer: Account = landOwner === Alice ? Bob : Alice;
-  return [landOwner, landBuyer];
+  const landTaker: Account = landOwner === Alice ? Bob : Alice;
+  return [landOwner, landTaker];
 };
 
 // Asset Alice and Bob's Ether balance
@@ -33,20 +33,22 @@ export const withAliceAndBobHavingEther = async () => {
   expect(balanceOfBob).toBeGreaterThanOrEqual(minimalEthBalance);
 };
 
+export const getWETHBalance = async (address: string) => {
+  const wethDecimal = await wethAbi.decimals();
+  const balanceBN = await wethAbi.balanceOf(address);
+  return _.toNumber(
+    ethers.utils.formatUnits(balanceBN, wethDecimal)
+  );
+}
+
 // Assert Alice and Bob's WETH balance
 const minimalWETHBalance = 0.1;
-export const withAliceAndBobHavingWETH = async () => {
-  const wethDecimal = await wethAbi.decimals();
+export const withAliceAndBobHavingWETH = async (landOwner: Account, landTaker: Account) => {
+  const landOwnerWETHBalance = await getWETHBalance(landOwner.address);
+  expect(landOwnerWETHBalance).toBeGreaterThanOrEqual(minimalWETHBalance);
 
-  const balanceOfAliceBN = await wethAbi.balanceOf(Alice.address);
-  const balanceOfAlice = _.toNumber(
-    ethers.utils.formatUnits(balanceOfAliceBN, wethDecimal)
-  );
-  expect(balanceOfAlice).toBeGreaterThanOrEqual(minimalWETHBalance);
-
-  const balanceOfBobBN = await wethAbi.balanceOf(Bob.address);
-  const balanceOfBob = _.toNumber(
-    ethers.utils.formatUnits(balanceOfBobBN, wethDecimal)
-  );
-  expect(balanceOfBob).toBeGreaterThanOrEqual(minimalWETHBalance);
+  const landTakerWETHBalance = await getWETHBalance(landTaker.address);
+  expect(landTakerWETHBalance).toBeGreaterThanOrEqual(minimalWETHBalance);
+  
+  return [landOwnerWETHBalance, landTakerWETHBalance];
 };

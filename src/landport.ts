@@ -38,7 +38,6 @@ import {
 } from './contracts';
 import {
   getDefaultOrderExpirationTimestamp,
-  getMaxOrderExpirationTimestamp,
   validateAndFormatWalletAddress,
   toBaseUnitAmount,
   generatePseudoRandomSalt,
@@ -194,7 +193,7 @@ export class LandPort {
     quantity,
     maximumFill = 1,
     listingTime,
-    expirationTime = getMaxOrderExpirationTimestamp(),
+    expirationTime = getDefaultOrderExpirationTimestamp(),
     waitForHighestBid,
     englishAuctionReservePrice = 0,
     paymentTokenAddress,
@@ -1419,7 +1418,7 @@ export class LandPort {
    * @param waitingForBestCounterOrder Whether this order should be hidden until the best match is found
    */
   private _getTimeParameters({
-    expirationTimestamp = getMaxOrderExpirationTimestamp(),
+    expirationTimestamp = getDefaultOrderExpirationTimestamp(),
     listingTimestamp,
     waitingForBestCounterOrder = false,
     isMatchingOrder = false,

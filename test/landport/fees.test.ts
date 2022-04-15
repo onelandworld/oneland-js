@@ -1,9 +1,11 @@
 import * as _ from 'lodash';
-import { BigNumber as EthBigNumber } from 'ethers';
+import { ethers, BigNumber as EthBigNumber } from 'ethers';
+import { BigNumber } from 'bignumber.js';
 import {
   withAliceOrBobOwningLand,
   withAliceAndBobHavingEther,
   withAliceAndBobHavingWETH,
+  getWETHBalance
 } from '../utils';
 import {
   RINKEBY_WETH_ADDRESS,
@@ -11,14 +13,41 @@ import {
   RINKEBY_SANDBOX_LAND_TOKEN_ID,
   provider,
   sandboxLandAbi,
+  Caro
 } from '../constants';
 import { LandPort, Network, WyvernSchemaName } from '../../src';
 
+const mockDefaultOnelandFeeBasisPointsGetter = jest.fn();
+const mockOnelandFeeRecipientGetter = jest.fn();
+jest.mock('../../src/constants', () => ({
+  get DEFAULT_ONELAND_FEE_BASIS_POINTS() {
+    return mockDefaultOnelandFeeBasisPointsGetter();
+  },
+  get ONELAND_FEE_RECIPIENT() {
+    return mockOnelandFeeRecipientGetter();
+  }
+}));
+
 describe('landport order fees', () => {
-  test.only('WETH Fees', async () => {
-    const [landOwner, landBuyer] = await withAliceOrBobOwningLand();
+  beforeEach(() => {
+    mockDefaultOnelandFeeBasisPointsGetter.mockClear();
+    mockOnelandFeeRecipientGetter.mockClear();
+  });
+
+  test.only('Oneland fees works', async () => {
+    // Set oneland fee to 1%
+    mockDefaultOnelandFeeBasisPointsGetter.mockReturnValue(100);
+    // Set oneland fee recipient to Caro
+    mockOnelandFeeRecipientGetter.mockReturnValue(Caro.address);
+
+    const price = 0.01;
+    const onelandFee = price * mockDefaultOnelandFeeBasisPointsGetter() / 10000;
+    const amount = price - onelandFee;
+
+    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
-    await withAliceAndBobHavingWETH();
+    const [landOwnerWETHBalance, landTakerWETHBalance] = await withAliceAndBobHavingWETH(landOwner, landTaker);
+    const onelandFeeRecipientWETHBalance = await getWETHBalance(mockOnelandFeeRecipientGetter());
 
     // Create Sell Order
     const asset = {
@@ -35,26 +64,35 @@ describe('landport order fees', () => {
     const order = await landOwnerPort.createSellOrder({
       asset,
       accountAddress: landOwner.address,
-      startAmount: 0.01,
+      startAmount: price,
       paymentTokenAddress: RINKEBY_WETH_ADDRESS,
     });
 
     // Fulfill order
-    const landBuyerPort = new LandPort(
+    const landTakerPort = new LandPort(
       provider,
       { network: Network.Rinkeby },
-      landBuyer.signer,
+      landTaker.signer,
       (msg: any) => console.log(msg)
     );
-    await landBuyerPort.fulfillOrder({
+    await landTakerPort.fulfillOrder({
       order,
-      accountAddress: landBuyer.address,
+      accountAddress: landTaker.address,
     });
 
     // Assert NFT is transferred
     const landOwnerAddress = await sandboxLandAbi.ownerOf(
       EthBigNumber.from(RINKEBY_SANDBOX_LAND_TOKEN_ID)
     );
-    expect(landOwnerAddress).toEqual(landBuyer.address);
+    expect(landOwnerAddress).toEqual(landTaker.address);
+
+    // Asset WETH is transferred
+    const updatedLandOwnerWETHBalance = await getWETHBalance(landOwner.address);
+    expect(updatedLandOwnerWETHBalance).toEqual(landOwnerWETHBalance + amount);
+    const updatedOnelandFeeRecipientWETHBalance = await getWETHBalance(mockOnelandFeeRecipientGetter());
+    expect(updatedOnelandFeeRecipientWETHBalance).toEqual(onelandFeeRecipientWETHBalance + onelandFee);
+    const updatedLandTakerWETHBalance = await getWETHBalance(landTaker.address);
+    expect(updatedLandTakerWETHBalance).toEqual(landTakerWETHBalance - amount - onelandFee);
+    
   }, 600000 /*10 minutes timeout*/);
 });
