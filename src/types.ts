@@ -242,10 +242,10 @@ export interface Asset {
  */
 export interface OneLandFees {
   // Fee for OneLand levied on sellers
-  onelandFeeBasisPoints: number;
+  onelandFeeBasisPoints?: number;
 
   // Fee for the collection owner levied on sellers
-  devFeeBasisPoints: number;
+  devFeeBasisPoints?: number;
 }
 
 export interface OneLandCollection extends OneLandFees {

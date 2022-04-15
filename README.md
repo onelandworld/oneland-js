@@ -22,7 +22,7 @@ $ yarn add --dev @typechain/ethers-v5
 
 # Copy whole or part of ABI definitions from etherscan, and put to src/abi/**/*.abi.json
 
-$ npx typechain --target ethers-v5 --out-dir src/typechain --show-stack-traces src/abi/**/*.abi.json
+$ yarn run typechain --target ethers-v5 --out-dir src/typechain --show-stack-traces src/abi/**/*.abi.json
 ```
 
 ## Build
@@ -48,7 +48,7 @@ Create ./test/.env file with same environment variables to ./test/.env-example
 ### Run command
 
 ```sh
-$ yarn test
+$ yarn test [./test/landport/orders.test.ts]
 ```
 
 # Develop and Use Locally (Recommended)

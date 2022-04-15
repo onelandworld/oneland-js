@@ -11,8 +11,6 @@ import {
   Asset,
   OrderSide,
   OneLandAPIConfig,
-  FeeMethod,
-  OneLandFees,
   WyvernSchemaName,
   WyvernAsset,
   WyvernNFTAsset,
@@ -25,15 +23,16 @@ import {
 import {
   WyvernRegistryAbi,
   WyvernExchangeAbi,
+  WyvernAtomicizerAbi,
   WyvernStaticAbi,
   ERC20Abi__factory,
   ERC721Abi__factory,
   StaticMarketAbi,
-  StaticMarketAbi__factory,
 } from './typechain';
 import {
   WyvernRegistry,
   WyvernExchange,
+  WyvernAtomicizer,
   WyvernStatic,
   StaticMarket,
 } from './contracts';
@@ -46,7 +45,6 @@ import {
   getWyvernAsset,
   getOrderHash,
   domainToSign,
-  structToSign,
   eip712Order,
   signTypedDataAsync,
   makeBigNumber,
@@ -55,7 +53,6 @@ import {
   assignOrdersToSides,
   constructWyvernV3AtomicMatchParameters,
   orderToJSON,
-  eip712,
   delay,
   debug,
 } from './utils';
@@ -67,9 +64,10 @@ import {
   MIN_EXPIRATION_MINUTES,
   MAX_EXPIRATION_MONTHS,
   ORDER_MATCHING_LATENCY_SECONDS,
-  INVERSE_BASIS_POINT,
   ONELAND_FEE_RECIPIENT,
   DEFAULT_ONELAND_FEE_BASIS_POINTS,
+  MAX_ONELAND_FEE_BASIS_POINTS,
+  MAX_DEV_FEE_BASIS_POINTS,
 } from './constants';
 import { tokens } from './tokens';
 import { OneLandAPI } from './api';
@@ -81,6 +79,7 @@ export class LandPort {
   private readonly api: OneLandAPI;
   private _wyvernRegistryAbi: WyvernRegistryAbi;
   private _wyvernExchangeAbi: WyvernExchangeAbi;
+  private _wyvernAtomicizerAbi: WyvernAtomicizerAbi;
   private _wyvernStaticAbi: WyvernStaticAbi;
   private _staticMarketAbi: StaticMarketAbi;
   private logger: (arg: string) => void;
@@ -101,6 +100,10 @@ export class LandPort {
       this._provider
     );
     this._wyvernExchangeAbi = WyvernExchange.getAbiClass(
+      this._network,
+      this._provider
+    );
+    this._wyvernAtomicizerAbi = WyvernAtomicizer.getAbiClass(
       this._network,
       this._provider
     );
@@ -129,9 +132,6 @@ export class LandPort {
     waitForHighestBid = false,
     englishAuctionReservePrice,
     paymentTokenAddress,
-    extraBountyBasisPoints = 0,
-    buyerAddress,
-    buyerEmail,
   }: {
     asset: Asset;
     accountAddress: string;
@@ -144,10 +144,11 @@ export class LandPort {
     englishAuctionReservePrice?: number;
     waitForHighestBid?: boolean;
     paymentTokenAddress?: string;
-    extraBountyBasisPoints?: number;
-    buyerAddress?: string;
-    buyerEmail?: string;
   }) {
+    if (!paymentTokenAddress || paymentTokenAddress === NULL_ADDRESS) {
+      throw new Error('Trading with ETH is not supported');
+    }
+
     const order = await this._makeSellOrder({
       asset,
       quantity,
@@ -160,15 +161,10 @@ export class LandPort {
       waitForHighestBid,
       englishAuctionReservePrice,
       paymentTokenAddress: paymentTokenAddress || NULL_ADDRESS,
-      buyerAddress: buyerAddress || NULL_ADDRESS,
     });
     debug('_makeSellOrder', order);
 
     await this._sellOrderValidationAndApprovals({ order, accountAddress });
-
-    if (buyerEmail) {
-      // TODO:
-    }
 
     const hashedOrder = {
       ...order,
@@ -202,7 +198,6 @@ export class LandPort {
     waitForHighestBid,
     englishAuctionReservePrice = 0,
     paymentTokenAddress,
-    buyerAddress,
   }: {
     asset: Asset;
     accountAddress: string;
@@ -215,7 +210,6 @@ export class LandPort {
     listingTime?: number;
     expirationTime?: number;
     paymentTokenAddress: string;
-    buyerAddress: string;
   }): Promise<UnhashedOrder> {
     accountAddress = validateAndFormatWalletAddress(accountAddress);
     const quantityBN = new BigNumber(quantity);
@@ -253,7 +247,7 @@ export class LandPort {
       });
 
     const { staticTarget, staticSelector, staticExtradata } =
-      this._getStaticCallTargetAndExtraData({
+      this._getStaticCallData({
         paymentTokenAddress,
         side: OrderSide.Sell,
         tokenAddress: asset.tokenAddress,
@@ -567,7 +561,6 @@ export class LandPort {
       buy,
       sell,
       accountAddress,
-      metadata,
     });
     await transaction.wait();
     return transaction.hash;
@@ -586,7 +579,7 @@ export class LandPort {
     recipientAddress = validateAndFormatWalletAddress(recipientAddress);
 
     const { staticTarget, staticSelector, staticExtradata } =
-      this._getStaticCallTargetAndExtraData({
+      this._getStaticCallData({
         paymentTokenAddress: order.paymentToken,
         side: OrderSide.Buy,
         tokenAddress: order.tokenAddress,
@@ -668,12 +661,10 @@ export class LandPort {
     buy,
     sell,
     accountAddress,
-    metadata = NULL_BLOCK_HASH,
   }: {
     buy: Order;
     sell: Order;
     accountAddress: string;
-    metadata?: string;
   }) {
     let value;
     let shouldValidateBuy = true;
@@ -719,68 +710,37 @@ export class LandPort {
     });
 
     // Construct call data
-    const erc721Abi = ERC721Abi__factory.connect(
-      sell.tokenAddress,
-      this._signer || this._provider.getSigner(sell.maker)
-    );
-    const recipientAddress = accountAddress;
-    const data = (
-      await erc721Abi.populateTransaction.transferFrom(
-        sell.maker,
-        recipientAddress,
-        sell.tokenId
-      )
-    ).data!;
-    const calldata = {
-      target: sell.tokenAddress,
-      howToCall: 0,
-      data,
-    };
-    // debug('** call data', data);
+    let firstCall, secondCall;
+    const isEther = sell.paymentToken === NULL_ADDRESS;
 
-    let countercalldata;
-    if (sell.paymentToken === NULL_ADDRESS) {
-      const counterdata = (
-        await this._wyvernStaticAbi.populateTransaction.test()
-      ).data!;
-      countercalldata = {
-        target: this._wyvernStaticAbi.address,
-        howToCall: 0,
-        data: counterdata,
-      };
+    if (isEther) {
+      const res = await this._getCallDataForEtherOrder({ sell, buy });
+      firstCall = res.firstCall;
+      secondCall = res.secondCall;
     } else {
-      // Assume ERC20 token
-      const erc20Abi = ERC20Abi__factory.connect(
-        sell.paymentToken,
-        this._provider
+      const { onelandFee, devFee } = sell;
+      const withFees = !(
+        onelandFee.eq(new BigNumber(0)) && devFee.eq(new BigNumber(0))
       );
-      const counterdata = (
-        await erc20Abi.populateTransaction.transferFrom(
-          buy.maker,
-          sell.maker,
-          toEthBigNumber(sell.basePrice)
-        )
-      ).data!;
-      countercalldata = {
-        target: erc20Abi.address,
-        howToCall: 0,
-        data: counterdata,
-      };
-    }
 
-    // debug('** counterdata', counterdata);
+      const res = !withFees
+        ? await this._getCallDataForERC20Orders({ sell, buy })
+        : await this._getCallDataForERC20OrdersWithFees({ sell, buy });
+      firstCall = res.firstCall;
+      secondCall = res.secondCall;
+    }
 
     const args: WyvernAtomicMatchParameters =
       constructWyvernV3AtomicMatchParameters(
         sell,
-        calldata,
+        firstCall,
         {
           v: sell.v || 0,
           r: sell.r || NULL_BLOCK_HASH,
           s: sell.s || NULL_BLOCK_HASH,
         },
         buy,
-        countercalldata,
+        secondCall,
         {
           v: buy.v || 0,
           r: buy.r || NULL_BLOCK_HASH,
@@ -812,6 +772,191 @@ export class LandPort {
       }
     );
     return trans;
+  }
+
+  private async _getCallDataForEtherOrder({
+    sell,
+    buy,
+  }: {
+    sell: Order;
+    buy: Order;
+  }) {
+    const erc721Abi = ERC721Abi__factory.connect(
+      sell.tokenAddress,
+      this._signer || this._provider.getSigner(buy.maker)
+    );
+    const recipientAddress = buy.maker;
+    const data = (
+      await erc721Abi.populateTransaction.transferFrom(
+        sell.maker,
+        recipientAddress,
+        sell.tokenId
+      )
+    ).data!;
+    const firstCall = {
+      target: sell.tokenAddress,
+      howToCall: 0,
+      data,
+    };
+
+    const secondCallData = (
+      await this._wyvernStaticAbi.populateTransaction.test()
+    ).data!;
+    const secondCall = {
+      target: this._wyvernStaticAbi.address,
+      howToCall: 0,
+      data: secondCallData,
+    };
+
+    return { firstCall, secondCall };
+  }
+
+  private async _getCallDataForERC20Orders({
+    sell,
+    buy,
+  }: {
+    sell: Order;
+    buy: Order;
+  }) {
+    const erc721Abi = ERC721Abi__factory.connect(
+      sell.tokenAddress,
+      this._signer || this._provider.getSigner(buy.maker)
+    );
+    const erc20Abi = ERC20Abi__factory.connect(
+      sell.paymentToken,
+      this._signer || this._provider.getSigner(buy.maker)
+    );
+
+    const data = (
+      await erc721Abi.populateTransaction.transferFrom(
+        sell.maker,
+        buy.maker,
+        sell.tokenId
+      )
+    ).data!;
+    const firstCall = {
+      target: sell.tokenAddress,
+      howToCall: 0,
+      data,
+    };
+
+    const secondCallData = (
+      await erc20Abi.populateTransaction.transferFrom(
+        buy.maker,
+        sell.maker,
+        toEthBigNumber(sell.basePrice)
+      )
+    ).data!;
+    const secondCall = {
+      target: erc20Abi.address,
+      howToCall: 0,
+      data: secondCallData,
+    };
+
+    return { firstCall, secondCall };
+  }
+
+  private async _getCallDataForERC20OrdersWithFees({
+    sell,
+    buy,
+  }: {
+    sell: Order;
+    buy: Order;
+  }) {
+    const { amount, onelandFee, onelandFeeRecipient, devFee, devFeeRecipient } =
+      sell;
+    const erc721Abi = ERC721Abi__factory.connect(
+      sell.tokenAddress,
+      this._signer || this._provider.getSigner(buy.maker)
+    );
+    const erc20Abi = ERC20Abi__factory.connect(
+      sell.paymentToken,
+      this._signer || this._provider.getSigner(buy.maker)
+    );
+
+    const firstERC721Call = (
+      await erc721Abi.populateTransaction.transferFrom(
+        sell.maker,
+        buy.maker,
+        sell.tokenId
+      )
+    ).data!;
+    const firstData = (
+      await this._wyvernAtomicizerAbi.populateTransaction.atomicize(
+        [erc721Abi.address],
+        [0],
+        [(firstERC721Call.length - 2) / 2],
+        firstERC721Call
+      )
+    ).data!;
+    const firstCall = {
+      target: this._wyvernAtomicizerAbi.address,
+      howToCall: 1,
+      data: firstData,
+    };
+
+    const secondAtomicizeCallAddrs = [],
+      secondAtomicizeCallValues = [],
+      secondAtomicizeCallDataLengths = [];
+    let secondAtomicizeCallDatas = '';
+    {
+      const erc20CallData = (
+        await erc20Abi.populateTransaction.transferFrom(
+          buy.maker,
+          sell.maker,
+          toEthBigNumber(amount)
+        )
+      ).data!;
+      secondAtomicizeCallAddrs.push(erc20Abi.address);
+      secondAtomicizeCallValues.push(0);
+      secondAtomicizeCallDataLengths.push((erc20CallData.length - 2) / 2);
+      secondAtomicizeCallDatas = erc20CallData;
+    }
+    if (onelandFee.gt(new BigNumber(0))) {
+      const erc20CallData = (
+        await erc20Abi.populateTransaction.transferFrom(
+          buy.maker,
+          onelandFeeRecipient,
+          toEthBigNumber(onelandFee)
+        )
+      ).data!;
+      secondAtomicizeCallAddrs.push(erc20Abi.address);
+      secondAtomicizeCallValues.push(0);
+      secondAtomicizeCallDataLengths.push((erc20CallData.length - 2) / 2);
+      secondAtomicizeCallDatas =
+        secondAtomicizeCallDatas + erc20CallData.slice(2);
+    }
+    if (devFee.gt(new BigNumber(0))) {
+      const erc20CallData = (
+        await erc20Abi.populateTransaction.transferFrom(
+          buy.maker,
+          devFeeRecipient,
+          toEthBigNumber(devFee)
+        )
+      ).data!;
+      secondAtomicizeCallAddrs.push(erc20Abi.address);
+      secondAtomicizeCallValues.push(0);
+      secondAtomicizeCallDataLengths.push((erc20CallData.length - 2) / 2);
+      secondAtomicizeCallDatas =
+        secondAtomicizeCallDatas + erc20CallData.slice(2);
+    }
+
+    const secondData = (
+      await this._wyvernAtomicizerAbi.populateTransaction.atomicize(
+        secondAtomicizeCallAddrs,
+        secondAtomicizeCallValues,
+        secondAtomicizeCallDataLengths,
+        secondAtomicizeCallDatas
+      )
+    ).data!;
+
+    const secondCall = {
+      target: this._wyvernAtomicizerAbi.address,
+      howToCall: 1,
+      data: secondData,
+    };
+
+    return { firstCall, secondCall };
   }
 
   /**
@@ -1463,13 +1608,31 @@ export class LandPort {
     const onelandFeeRecipient = ONELAND_FEE_RECIPIENT;
 
     let onelandFeeBasisPoints = DEFAULT_ONELAND_FEE_BASIS_POINTS;
-    if (_.get(asset, 'collection.onelandFeeBasisPoints', -1) >= 0) {
-      onelandFeeBasisPoints = asset.collection.onelandFeeBasisPoints;
+    const onelandFeeBasisPointsOverwrittenByCollection = _.get(
+      asset,
+      'collection.onelandFeeBasisPoints',
+      -1
+    );
+    if (onelandFeeBasisPointsOverwrittenByCollection >= 0) {
+      onelandFeeBasisPoints = _.min([
+        onelandFeeBasisPointsOverwrittenByCollection,
+        MAX_ONELAND_FEE_BASIS_POINTS,
+      ]);
     }
+
     let devFeeBasisPoints = 0;
-    if (_.get(asset, 'collection.devFeeBasisPoints', -1) >= 0) {
-      devFeeBasisPoints = asset.collection.devFeeBasisPoints;
+    const devFeeBasisPointsOfCollection = _.get(
+      asset,
+      'collection.devFeeBasisPoints',
+      -1
+    );
+    if (devFeeBasisPointsOfCollection >= 0) {
+      devFeeBasisPoints = _.min([
+        devFeeBasisPointsOfCollection,
+        MAX_DEV_FEE_BASIS_POINTS,
+      ]);
     }
+
     const devFeeRecipient = _.get(
       asset,
       'collection.payoutAddress',
@@ -1479,9 +1642,12 @@ export class LandPort {
     const onelandFee = basePrice
       .times(new BigNumber(onelandFeeBasisPoints))
       .div(new BigNumber(10000));
-    const devFee = basePrice
-      .times(new BigNumber(devFeeBasisPoints))
-      .div(new BigNumber(10000));
+    const devFee =
+      devFeeRecipient === NULL_ADDRESS
+        ? new BigNumber(0)
+        : basePrice
+            .times(new BigNumber(devFeeBasisPoints))
+            .div(new BigNumber(10000));
     const amount = basePrice.minus(onelandFee).minus(devFee);
 
     return {
@@ -1493,32 +1659,7 @@ export class LandPort {
     };
   }
 
-  /**
-   * Validate fee parameters
-   * @param totalBuyerFeeBasisPoints Total buyer fees
-   * @param totalSellerFeeBasisPoints Total seller fees
-   */
-  private _validateFees(
-    totalBuyerFeeBasisPoints: number,
-    totalSellerFeeBasisPoints: number
-  ) {
-    const maxFeePercent = INVERSE_BASIS_POINT / 100;
-
-    if (
-      totalBuyerFeeBasisPoints > INVERSE_BASIS_POINT ||
-      totalSellerFeeBasisPoints > INVERSE_BASIS_POINT
-    ) {
-      throw new Error(
-        `Invalid buyer/seller fees: must be less than ${maxFeePercent}%`
-      );
-    }
-
-    if (totalBuyerFeeBasisPoints < 0 || totalSellerFeeBasisPoints < 0) {
-      throw new Error('Invalid buyer/seller fees: must be at least 0%');
-    }
-  }
-
-  public _getStaticCallTargetAndExtraData({
+  public _getStaticCallData({
     paymentTokenAddress,
     side,
     tokenAddress,
@@ -1533,8 +1674,8 @@ export class LandPort {
   }: {
     paymentTokenAddress: string;
     side: OrderSide;
-    tokenAddress?: string;
-    tokenId?: string;
+    tokenAddress: string;
+    tokenId: string;
     sellingPrice?: BigNumber;
     buyingPrice?: BigNumber;
     amount: BigNumber;
@@ -1547,46 +1688,340 @@ export class LandPort {
     staticSelector: string;
     staticExtradata: string;
   } {
-    let staticTarget, staticSelector, staticExtradata;
+    const isEther = paymentTokenAddress.toLocaleLowerCase() === NULL_ADDRESS;
 
-    const paymentToken = paymentTokenAddress.toLocaleLowerCase();
-    const isEther = paymentToken === NULL_ADDRESS;
-    // Swap ERC721 with Ether
     if (isEther) {
-      // TODO: Try to use `transferERC721Exact`
-      staticTarget = this._wyvernStaticAbi.address;
-      staticSelector = this._wyvernStaticAbi.interface.getSighash('anyAddOne');
-      staticExtradata = '0x';
+      return this._getStaticCallDataForEtherOrder({ tokenAddress, tokenId });
+    }
+
+    const withFees = !(
+      onelandFee.eq(new BigNumber(0)) && devFee.eq(new BigNumber(0))
+    );
+    if (!withFees) {
+      return this._getStaticCallDataForERC20Order({
+        paymentTokenAddress,
+        tokenAddress,
+        tokenId,
+        side,
+        sellingPrice,
+        buyingPrice,
+      });
     } else {
-      // Swap ERC721 with ERC20 token, Sell side
-      if (side === OrderSide.Sell) {
-        staticTarget = this._staticMarketAbi.address;
-        staticSelector = this._staticMarketAbi.interface.getSighash(
-          'ERC721ForERC20(bytes,address[7],uint8[2],uint256[6],bytes,bytes)'
+      return this._getStaticCallDataForERC20OrderWithFees({
+        paymentTokenAddress,
+        tokenAddress,
+        tokenId,
+        side,
+        amount,
+        onelandFee,
+        onelandFeeRecipient,
+        devFee,
+        devFeeRecipient,
+      });
+    }
+  }
+
+  private _getStaticCallDataForEtherOrder({
+    tokenAddress,
+    tokenId,
+  }: {
+    tokenAddress: string;
+    tokenId: string;
+  }): {
+    staticTarget: string;
+    staticSelector: string;
+    staticExtradata: string;
+  } {
+    const staticTarget = this._wyvernStaticAbi.address;
+    const staticSelector =
+      this._wyvernStaticAbi.interface.getSighash('anyAddOne');
+    const staticExtradata = '0x';
+    return {
+      staticTarget,
+      staticSelector,
+      staticExtradata,
+    };
+  }
+
+  private _getStaticCallDataForERC20Order({
+    paymentTokenAddress,
+    tokenAddress,
+    tokenId,
+    side,
+    sellingPrice,
+    buyingPrice,
+  }: {
+    paymentTokenAddress: string;
+    tokenAddress: string;
+    tokenId: string;
+    side: OrderSide;
+    sellingPrice?: BigNumber;
+    buyingPrice?: BigNumber;
+  }): {
+    staticTarget: string;
+    staticSelector: string;
+    staticExtradata: string;
+  } {
+    const paymentToken = paymentTokenAddress.toLocaleLowerCase();
+    let staticTarget, staticSelector, staticExtradata;
+    // Swap ERC721 with ERC20 token, Sell side
+    if (side === OrderSide.Sell) {
+      staticTarget = this._staticMarketAbi.address;
+      staticSelector = this._staticMarketAbi.interface.getSighash(
+        'ERC721ForERC20(bytes,address[7],uint8[2],uint256[6],bytes,bytes)'
+      );
+      staticExtradata = ethers.utils.defaultAbiCoder.encode(
+        ['address[2]', 'uint256[2]'],
+        [
+          [tokenAddress!, paymentToken],
+          [tokenId, toEthBigNumber(sellingPrice!)],
+        ]
+      );
+    }
+    // Swap ERC721 with ERC20 token, Buy side
+    else {
+      staticTarget = this._staticMarketAbi.address;
+      staticSelector = this._staticMarketAbi.interface.getSighash(
+        'ERC20ForERC721(bytes,address[7],uint8[2],uint256[6],bytes,bytes)'
+      );
+      staticExtradata = ethers.utils.defaultAbiCoder.encode(
+        ['address[2]', 'uint256[2]'],
+        [
+          [paymentToken, tokenAddress!],
+          [tokenId, toEthBigNumber(buyingPrice!)],
+        ]
+      );
+    }
+    return {
+      staticTarget,
+      staticSelector,
+      staticExtradata,
+    };
+  }
+
+  private _getStaticCallDataForERC20OrderWithFees({
+    paymentTokenAddress,
+    tokenAddress,
+    tokenId,
+    side,
+    amount,
+    onelandFee,
+    onelandFeeRecipient,
+    devFee,
+    devFeeRecipient,
+  }: {
+    paymentTokenAddress: string;
+    tokenAddress: string;
+    tokenId: string;
+    side: OrderSide;
+    amount: BigNumber;
+    onelandFee: BigNumber;
+    onelandFeeRecipient: string;
+    devFee: BigNumber;
+    devFeeRecipient: string;
+  }): {
+    staticTarget: string;
+    staticSelector: string;
+    staticExtradata: string;
+  } {
+    const paymentToken = paymentTokenAddress.toLocaleLowerCase();
+    const staticTarget = this._wyvernStaticAbi.address;
+    let staticSelector, staticExtradata;
+    if (side === OrderSide.Sell) {
+      staticSelector = this._wyvernStaticAbi.interface.getSighash(
+        'split(bytes,address[7],uint8[2],uint256[6],bytes,bytes)'
+      );
+      // 	`split` extraData part 1 (staticCall of order)
+      const selectorA = this._wyvernStaticAbi.interface.getSighash(
+        'sequenceExact(bytes,address[7],uint8,uint256[6],bytes)'
+      );
+      const selectorA1 = this._wyvernStaticAbi.interface.getSighash(
+        'transferERC721Exact(bytes,address[7],uint8,uint256[6],bytes)'
+      );
+      const edParamsA1 = ethers.utils.defaultAbiCoder.encode(
+        ['address', 'uint256'],
+        [tokenAddress, tokenId]
+      );
+      const extradataA = ethers.utils.defaultAbiCoder.encode(
+        ['address[]', 'uint256[]', 'bytes4[]', 'bytes'],
+        [
+          [this._wyvernStaticAbi.address],
+          [(edParamsA1.length - 2) / 2],
+          [selectorA1],
+          edParamsA1,
+        ]
+      );
+
+      //	`split` extraData part 2 (staticCall of counter order)
+      const selectorB = this._wyvernStaticAbi.interface.getSighash(
+        'sequenceExact(bytes,address[7],uint8,uint256[6],bytes)'
+      );
+
+      const extradataBAddresses = [],
+        extradataBParamsLength = [],
+        extradataBSelectors = [];
+      let extradataBParams = '';
+      //    transfer `amount` to seller
+      {
+        const selector = this._wyvernStaticAbi.interface.getSighash(
+          'transferERC20Exact(bytes,address[7],uint8,uint256[6],bytes)'
         );
-        // debug(tokenAddress!, paymentToken, tokenId, sellingPrice);
-        staticExtradata = ethers.utils.defaultAbiCoder.encode(
-          ['address[2]', 'uint256[2]'],
-          [
-            [tokenAddress!, paymentToken],
-            [tokenId, toEthBigNumber(sellingPrice!)],
-          ]
+        const edParams = ethers.utils.defaultAbiCoder.encode(
+          ['address', 'uint256'],
+          [paymentToken, toEthBigNumber(amount)]
         );
+        extradataBAddresses.push(this._wyvernStaticAbi.address);
+        extradataBSelectors.push(selector);
+        extradataBParamsLength.push((edParams.length - 2) / 2);
+        extradataBParams = edParams;
       }
-      // Swap ERC721 with ERC20 token, Buy side
-      else {
-        staticTarget = this._staticMarketAbi.address;
-        staticSelector = this._staticMarketAbi.interface.getSighash(
-          'ERC20ForERC721(bytes,address[7],uint8[2],uint256[6],bytes,bytes)'
+      //    transfer onelandFee
+      if (onelandFee.gt(new BigNumber(0))) {
+        const selector = this._wyvernStaticAbi.interface.getSighash(
+          'transferERC20ExactTo(bytes,address[7],uint8,uint256[6],bytes)'
         );
-        staticExtradata = ethers.utils.defaultAbiCoder.encode(
-          ['address[2]', 'uint256[2]'],
-          [
-            [paymentToken, tokenAddress!],
-            [tokenId, toEthBigNumber(buyingPrice!)],
-          ]
+        const edParams = ethers.utils.defaultAbiCoder.encode(
+          ['address', 'uint256'],
+          [paymentToken, toEthBigNumber(onelandFee), onelandFeeRecipient]
         );
+        extradataBAddresses.push(this._wyvernStaticAbi.address);
+        extradataBSelectors.push(selector);
+        extradataBParamsLength.push((edParams.length - 2) / 2);
+        extradataBParams = extradataBParams + edParams.slice(2);
       }
+      //    transfer `devFee` to collection owner
+      if (devFee.gt(new BigNumber(0))) {
+        const selector = this._wyvernStaticAbi.interface.getSighash(
+          'transferERC20ExactTo(bytes,address[7],uint8,uint256[6],bytes)'
+        );
+        const edParams = ethers.utils.defaultAbiCoder.encode(
+          ['address', 'uint256'],
+          [paymentToken, toEthBigNumber(devFee), devFeeRecipient]
+        );
+        extradataBAddresses.push(this._wyvernStaticAbi.address);
+        extradataBSelectors.push(selector);
+        extradataBParamsLength.push((edParams.length - 2) / 2);
+        extradataBParams = extradataBParams + edParams.slice(2);
+      }
+
+      const extradataB = ethers.utils.defaultAbiCoder.encode(
+        ['address[]', 'uint256[]', 'bytes4[]', 'bytes'],
+        [
+          extradataBAddresses,
+          extradataBParamsLength,
+          extradataBSelectors,
+          extradataBParams,
+        ]
+      );
+
+      // `split` extraData combined
+      staticExtradata = ethers.utils.defaultAbiCoder.encode(
+        ['address[2]', 'bytes4[2]', 'bytes', 'bytes'],
+        [
+          [this._wyvernStaticAbi.address, this._wyvernStaticAbi.address],
+          [selectorA, selectorB],
+          extradataA,
+          extradataB,
+        ]
+      );
+    } else {
+      staticSelector = this._wyvernStaticAbi.interface.getSighash(
+        'split(bytes,address[7],uint8[2],uint256[6],bytes,bytes)'
+      );
+      // 	`split` extraData part 1 (staticCall of order)
+
+      const selectorA = this._wyvernStaticAbi.interface.getSighash(
+        'sequenceExact(bytes,address[7],uint8,uint256[6],bytes)'
+      );
+
+      const extradataAAddresses = [],
+        extradataAParamsLength = [],
+        extradataASelectors = [];
+      let extradataAParams = '';
+      //    transfer `amount` to seller
+      {
+        const selector = this._wyvernStaticAbi.interface.getSighash(
+          'transferERC20Exact(bytes,address[7],uint8,uint256[6],bytes)'
+        );
+        const edParams = ethers.utils.defaultAbiCoder.encode(
+          ['address', 'uint256'],
+          [paymentToken, toEthBigNumber(amount)]
+        );
+        extradataAAddresses.push(this._wyvernStaticAbi.address);
+        extradataASelectors.push(selector);
+        extradataAParamsLength.push((edParams.length - 2) / 2);
+        extradataAParams = edParams;
+      }
+      //    transfer onelandFee
+      if (onelandFee.gt(new BigNumber(0))) {
+        const selector = this._wyvernStaticAbi.interface.getSighash(
+          'transferERC20ExactTo(bytes,address[7],uint8,uint256[6],bytes)'
+        );
+        const edParams = ethers.utils.defaultAbiCoder.encode(
+          ['address', 'uint256'],
+          [paymentToken, toEthBigNumber(onelandFee), onelandFeeRecipient]
+        );
+        extradataAAddresses.push(this._wyvernStaticAbi.address);
+        extradataASelectors.push(selector);
+        extradataAParamsLength.push((edParams.length - 2) / 2);
+        extradataAParams = extradataAParams + edParams.slice(2);
+      }
+      //    transfer `devFee` to collection owner
+      if (devFee.gt(new BigNumber(0))) {
+        const selector = this._wyvernStaticAbi.interface.getSighash(
+          'transferERC20ExactTo(bytes,address[7],uint8,uint256[6],bytes)'
+        );
+        const edParams = ethers.utils.defaultAbiCoder.encode(
+          ['address', 'uint256'],
+          [paymentToken, toEthBigNumber(devFee), devFeeRecipient]
+        );
+        extradataAAddresses.push(this._wyvernStaticAbi.address);
+        extradataASelectors.push(selector);
+        extradataAParamsLength.push((edParams.length - 2) / 2);
+        extradataAParams = extradataAParams + edParams.slice(2);
+      }
+
+      const extradataA = ethers.utils.defaultAbiCoder.encode(
+        ['address[]', 'uint256[]', 'bytes4[]', 'bytes'],
+        [
+          extradataAAddresses,
+          extradataAParamsLength,
+          extradataASelectors,
+          extradataAParams,
+        ]
+      );
+
+      //	`split` extraData part 2 (staticCall of counter order)
+      const selectorB = this._wyvernStaticAbi.interface.getSighash(
+        'sequenceExact(bytes,address[7],uint8,uint256[6],bytes)'
+      );
+      const selectorB1 = this._wyvernStaticAbi.interface.getSighash(
+        'transferERC721Exact(bytes,address[7],uint8,uint256[6],bytes)'
+      );
+      const edParamsB1 = ethers.utils.defaultAbiCoder.encode(
+        ['address', 'uint256'],
+        [tokenAddress, tokenId]
+      );
+      const extradataB = ethers.utils.defaultAbiCoder.encode(
+        ['address[]', 'uint256[]', 'bytes4[]', 'bytes'],
+        [
+          [this._wyvernStaticAbi.address],
+          [(edParamsB1.length - 2) / 2],
+          [selectorB1],
+          edParamsB1,
+        ]
+      );
+
+      // `split` extraData combined
+      staticExtradata = ethers.utils.defaultAbiCoder.encode(
+        ['address[2]', 'bytes4[2]', 'bytes', 'bytes'],
+        [
+          [this._wyvernStaticAbi.address, this._wyvernStaticAbi.address],
+          [selectorA, selectorB],
+          extradataA,
+          extradataB,
+        ]
+      );
     }
 
     return {

@@ -14,33 +14,8 @@ import {
 } from '../constants';
 import { LandPort, Network, WyvernSchemaName } from '../../src';
 
-describe('landport orders', () => {
-  // Note: Use test.only(...) to run specific test only
-  test('Swapping NFT with Ether Not Works', async () => {
-    const [landOwner] = await withAliceOrBobOwningLand();
-
-    // Create Sell Order
-    const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
-      schemaName: WyvernSchemaName.ERC721,
-    };
-    const landOwnerPort = new LandPort(
-      provider,
-      { network: Network.Rinkeby },
-      landOwner.signer,
-      (msg: any) => console.log(msg)
-    );
-    await expect(
-      landOwnerPort.createSellOrder({
-        asset,
-        accountAddress: landOwner.address,
-        startAmount: 0.01,
-      })
-    ).rejects.toThrow('Trading with ETH is not supported');
-  }, 600000 /*10 minutes timeout*/);
-
-  test('Swapping NFT with WETH Works', async () => {
+describe('landport order fees', () => {
+  test.only('WETH Fees', async () => {
     const [landOwner, landBuyer] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
     await withAliceAndBobHavingWETH();
@@ -82,24 +57,4 @@ describe('landport orders', () => {
     );
     expect(landOwnerAddress).toEqual(landBuyer.address);
   }, 600000 /*10 minutes timeout*/);
-
-  // TODO
-  test('Could not sell NFT with 0 ERC20 Price', async () => {
-    expect(1 + 1).toEqual(2);
-  });
-
-  // TODO
-  test('Could not sell not-owned NFT', async () => {
-    expect(1 + 1).toEqual(2);
-  });
-
-  // TODO
-  test('Cancelled Orders could not be matched', async () => {
-    expect(1 + 1).toEqual(2);
-  });
-
-  // TODO
-  test('Order could not be matched twice', async () => {
-    expect(1 + 1).toEqual(2);
-  });
 });
