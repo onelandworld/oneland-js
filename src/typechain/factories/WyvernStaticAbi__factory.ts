@@ -851,6 +851,39 @@ const _abi = [
         type: "bytes",
       },
     ],
+    name: "transferERC20ExactTo",
+    outputs: [],
+    stateMutability: "pure",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "bytes",
+        name: "extra",
+        type: "bytes",
+      },
+      {
+        internalType: "address[7]",
+        name: "addresses",
+        type: "address[7]",
+      },
+      {
+        internalType: "enum AuthenticatedProxy.HowToCall",
+        name: "howToCall",
+        type: "uint8",
+      },
+      {
+        internalType: "uint256[6]",
+        name: "",
+        type: "uint256[6]",
+      },
+      {
+        internalType: "bytes",
+        name: "data",
+        type: "bytes",
+      },
+    ],
     name: "transferERC721Exact",
     outputs: [],
     stateMutability: "pure",

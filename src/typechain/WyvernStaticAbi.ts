@@ -40,6 +40,7 @@ export interface WyvernStaticAbiInterface extends utils.Interface {
     "test()": FunctionFragment;
     "transferERC1155Exact(bytes,address[7],uint8,uint256[6],bytes)": FunctionFragment;
     "transferERC20Exact(bytes,address[7],uint8,uint256[6],bytes)": FunctionFragment;
+    "transferERC20ExactTo(bytes,address[7],uint8,uint256[6],bytes)": FunctionFragment;
     "transferERC721Exact(bytes,address[7],uint8,uint256[6],bytes)": FunctionFragment;
   };
 
@@ -224,6 +225,10 @@ export interface WyvernStaticAbiInterface extends utils.Interface {
     values: [BytesLike, string[], BigNumberish, BigNumberish[], BytesLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "transferERC20ExactTo",
+    values: [BytesLike, string[], BigNumberish, BigNumberish[], BytesLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "transferERC721Exact",
     values: [BytesLike, string[], BigNumberish, BigNumberish[], BytesLike]
   ): string;
@@ -281,6 +286,10 @@ export interface WyvernStaticAbiInterface extends utils.Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "transferERC20Exact",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "transferERC20ExactTo",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -510,6 +519,15 @@ export interface WyvernStaticAbi extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[void]>;
 
+    transferERC20ExactTo(
+      extra: BytesLike,
+      addresses: string[],
+      howToCall: BigNumberish,
+      arg3: BigNumberish[],
+      data: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<[void]>;
+
     transferERC721Exact(
       extra: BytesLike,
       addresses: string[],
@@ -711,6 +729,15 @@ export interface WyvernStaticAbi extends BaseContract {
     overrides?: CallOverrides
   ): Promise<void>;
 
+  transferERC20ExactTo(
+    extra: BytesLike,
+    addresses: string[],
+    howToCall: BigNumberish,
+    arg3: BigNumberish[],
+    data: BytesLike,
+    overrides?: CallOverrides
+  ): Promise<void>;
+
   transferERC721Exact(
     extra: BytesLike,
     addresses: string[],
@@ -904,6 +931,15 @@ export interface WyvernStaticAbi extends BaseContract {
     ): Promise<void>;
 
     transferERC20Exact(
+      extra: BytesLike,
+      addresses: string[],
+      howToCall: BigNumberish,
+      arg3: BigNumberish[],
+      data: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    transferERC20ExactTo(
       extra: BytesLike,
       addresses: string[],
       howToCall: BigNumberish,
@@ -1116,6 +1152,15 @@ export interface WyvernStaticAbi extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
+    transferERC20ExactTo(
+      extra: BytesLike,
+      addresses: string[],
+      howToCall: BigNumberish,
+      arg3: BigNumberish[],
+      data: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
     transferERC721Exact(
       extra: BytesLike,
       addresses: string[],
@@ -1310,6 +1355,15 @@ export interface WyvernStaticAbi extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     transferERC20Exact(
+      extra: BytesLike,
+      addresses: string[],
+      howToCall: BigNumberish,
+      arg3: BigNumberish[],
+      data: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    transferERC20ExactTo(
       extra: BytesLike,
       addresses: string[],
       howToCall: BigNumberish,

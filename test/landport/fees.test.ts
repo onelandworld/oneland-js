@@ -19,14 +19,24 @@ import { LandPort, Network, WyvernSchemaName } from '../../src';
 
 const mockDefaultOnelandFeeBasisPointsGetter = jest.fn();
 const mockOnelandFeeRecipientGetter = jest.fn();
-jest.mock('../../src/constants', () => ({
-  get DEFAULT_ONELAND_FEE_BASIS_POINTS() {
-    return mockDefaultOnelandFeeBasisPointsGetter();
-  },
-  get ONELAND_FEE_RECIPIENT() {
-    return mockOnelandFeeRecipientGetter();
-  }
-}));
+jest.mock('../../src/fees', () => {
+  // const originalModule = jest.requireActual('../../src/fees');
+  return {
+    // ...originalModule,
+    get DEFAULT_ONELAND_FEE_BASIS_POINTS() {
+      return mockDefaultOnelandFeeBasisPointsGetter();
+    },
+    get MAX_ONELAND_FEE_BASIS_POINTS() {
+      return 3000;
+    },
+    get MAX_DEV_FEE_BASIS_POINTS() {
+      return 3000;
+    },
+    get ONELAND_FEE_RECIPIENT() {
+      return mockOnelandFeeRecipientGetter();
+    }
+  };
+});
 
 describe('landport order fees', () => {
   beforeEach(() => {
@@ -34,7 +44,7 @@ describe('landport order fees', () => {
     mockOnelandFeeRecipientGetter.mockClear();
   });
 
-  test.only('Oneland fees works', async () => {
+  test('Oneland fees works', async () => {
     // Set oneland fee to 1%
     mockDefaultOnelandFeeBasisPointsGetter.mockReturnValue(100);
     // Set oneland fee recipient to Caro
@@ -88,11 +98,11 @@ describe('landport order fees', () => {
 
     // Asset WETH is transferred
     const updatedLandOwnerWETHBalance = await getWETHBalance(landOwner.address);
-    expect(updatedLandOwnerWETHBalance).toEqual(landOwnerWETHBalance + amount);
+    expect(updatedLandOwnerWETHBalance).toBeCloseTo(landOwnerWETHBalance + amount, 3);
     const updatedOnelandFeeRecipientWETHBalance = await getWETHBalance(mockOnelandFeeRecipientGetter());
-    expect(updatedOnelandFeeRecipientWETHBalance).toEqual(onelandFeeRecipientWETHBalance + onelandFee);
+    expect(updatedOnelandFeeRecipientWETHBalance).toBeCloseTo(onelandFeeRecipientWETHBalance + onelandFee, 3);
     const updatedLandTakerWETHBalance = await getWETHBalance(landTaker.address);
-    expect(updatedLandTakerWETHBalance).toEqual(landTakerWETHBalance - amount - onelandFee);
+    expect(updatedLandTakerWETHBalance).toBeCloseTo(landTakerWETHBalance - amount - onelandFee, 3);
     
   }, 600000 /*10 minutes timeout*/);
 });

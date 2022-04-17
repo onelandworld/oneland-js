@@ -63,11 +63,13 @@ import {
   MIN_EXPIRATION_MINUTES,
   MAX_EXPIRATION_MONTHS,
   ORDER_MATCHING_LATENCY_SECONDS,
+} from './constants';
+import {
   ONELAND_FEE_RECIPIENT,
   DEFAULT_ONELAND_FEE_BASIS_POINTS,
   MAX_ONELAND_FEE_BASIS_POINTS,
   MAX_DEV_FEE_BASIS_POINTS,
-} from './constants';
+} from './fees';
 import { tokens } from './tokens';
 import { OneLandAPI } from './api';
 
@@ -1880,7 +1882,7 @@ export class LandPort {
           'transferERC20ExactTo(bytes,address[7],uint8,uint256[6],bytes)'
         );
         const edParams = ethers.utils.defaultAbiCoder.encode(
-          ['address', 'uint256'],
+          ['address', 'uint256', 'address'],
           [paymentToken, toEthBigNumber(onelandFee), onelandFeeRecipient]
         );
         extradataBAddresses.push(this._wyvernStaticAbi.address);
@@ -1894,7 +1896,7 @@ export class LandPort {
           'transferERC20ExactTo(bytes,address[7],uint8,uint256[6],bytes)'
         );
         const edParams = ethers.utils.defaultAbiCoder.encode(
-          ['address', 'uint256'],
+          ['address', 'uint256', 'address'],
           [paymentToken, toEthBigNumber(devFee), devFeeRecipient]
         );
         extradataBAddresses.push(this._wyvernStaticAbi.address);
@@ -1957,7 +1959,7 @@ export class LandPort {
           'transferERC20ExactTo(bytes,address[7],uint8,uint256[6],bytes)'
         );
         const edParams = ethers.utils.defaultAbiCoder.encode(
-          ['address', 'uint256'],
+          ['address', 'uint256', 'address'],
           [paymentToken, toEthBigNumber(onelandFee), onelandFeeRecipient]
         );
         extradataAAddresses.push(this._wyvernStaticAbi.address);
@@ -1971,7 +1973,7 @@ export class LandPort {
           'transferERC20ExactTo(bytes,address[7],uint8,uint256[6],bytes)'
         );
         const edParams = ethers.utils.defaultAbiCoder.encode(
-          ['address', 'uint256'],
+          ['address', 'uint256', 'address'],
           [paymentToken, toEthBigNumber(devFee), devFeeRecipient]
         );
         extradataAAddresses.push(this._wyvernStaticAbi.address);
