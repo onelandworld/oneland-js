@@ -5,7 +5,14 @@ export const deployed = {
     WyvernRegistry: '0x92C64C093B624ea1A0F63831461470D84b5666E1',
     WyvernExchange: '0xEbB48Bf24BbdF0A5Bb6A9DDac7D3888ED023b453',
     WyvernStatic: '0x521DBC611f1d1290B01f15092bc4D8bE2f951f82',
-    StaticMarket: '0xD1205Be6C66a4f450f1E0809020da99433138bA5',
+    StaticMarket: '0xD1205Be6C66a4f450f1E0809020da99433138bA5'
   },
-  mainnet: {},
+  mainnet: {
+    Migrations: '0x365ad15035B343b7dd8F22030DfC1a75AF3dB81F',
+    WyvernAtomicizer: '0xfD73bB171F13d89905846cfC7A34cE70F3B84214',
+    WyvernStatic: '0x7A3e9DDEb274792170A683B658725Ddf3Bb0BD85',
+    WyvernRegistry: '0x0d98fC45dCCCbd4D56F8E8Bb233FcD7Dda6224B8',
+    WyvernExchange: '0xd188E5D1aB946b47436794f6477F84fEe6C54CB6',
+    StaticMarket: '0x13bc0C61b19Ea920b14AfC1b8c704f2242771DF7'
+  },
 };
