@@ -63,13 +63,11 @@ import {
   MIN_EXPIRATION_MINUTES,
   MAX_EXPIRATION_MONTHS,
   ORDER_MATCHING_LATENCY_SECONDS,
-} from './constants';
-import {
   ONELAND_FEE_RECIPIENT,
   DEFAULT_ONELAND_FEE_BASIS_POINTS,
   MAX_ONELAND_FEE_BASIS_POINTS,
   MAX_DEV_FEE_BASIS_POINTS,
-} from './fees';
+} from './constants';
 import { tokens } from './tokens';
 import { OneLandAPI } from './api';
 
@@ -133,9 +131,6 @@ export class LandPort {
     waitForHighestBid = false,
     englishAuctionReservePrice,
     paymentTokenAddress,
-    // extraBountyBasisPoints = 0,
-    // buyerAddress,
-    // buyerEmail,
     onStep,
   }: {
     asset: Asset;
@@ -176,7 +171,7 @@ export class LandPort {
     debug('_makeSellOrder', order);
 
     await this._sellOrderValidationAndApprovals({ order, accountAddress });
-    nextStep()
+    nextStep();
 
     const hashedOrder = {
       ...order,
@@ -185,7 +180,7 @@ export class LandPort {
     let signature;
     try {
       signature = await this.authorizeOrder(hashedOrder);
-      nextStep()
+      nextStep();
     } catch (error) {
       console.error(error);
       throw new Error('You declined to authorize your auction');
@@ -652,7 +647,10 @@ export class LandPort {
     accountAddress: string;
   }): Promise<void> {
     const hash = getOrderHash(order);
-    const trans = await this._wyvernExchangeAbi.setOrderFill_(
+    const wyvernExchangeAbi = this._wyvernExchangeAbi.connect(
+      this._signer || this._provider.getSigner(accountAddress)
+    );
+    const trans = await wyvernExchangeAbi.setOrderFill_(
       hash,
       toEthBigNumber(order.maximumFill),
       {
@@ -1542,8 +1540,8 @@ export class LandPort {
     const token = tokens[0];
 
     // Validation
-    if (isNaN(startAmount) || startAmount === null || startAmount < 0) {
-      throw new Error('Starting price must be a number >= 0');
+    if (isNaN(startAmount) || startAmount === null || startAmount <= 0) {
+      throw new Error('Starting price must be a number > 0');
     }
     if (!isEther && !token) {
       throw new Error(`No ERC-20 token found for '${paymentToken}'`);

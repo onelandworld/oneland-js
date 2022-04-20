@@ -1,11 +1,10 @@
 import * as _ from 'lodash';
-import { ethers, BigNumber as EthBigNumber } from 'ethers';
-import { BigNumber } from 'bignumber.js';
+import { BigNumber as EthBigNumber } from 'ethers';
 import {
   withAliceOrBobOwningLand,
   withAliceAndBobHavingEther,
   withAliceAndBobHavingWETH,
-  getWETHBalance
+  getWETHBalance,
 } from '../utils';
 import {
   RINKEBY_WETH_ADDRESS,
@@ -13,14 +12,14 @@ import {
   RINKEBY_SANDBOX_LAND_TOKEN_ID,
   provider,
   sandboxLandAbi,
-  Caro
+  Caro,
 } from '../constants';
 import { LandPort, Network, WyvernSchemaName } from '../../src';
 
 const mockDefaultOnelandFeeBasisPointsGetter = jest.fn();
 const mockOnelandFeeRecipientGetter = jest.fn();
-jest.mock('../../src/fees', () => {
-  // const originalModule = jest.requireActual('../../src/fees');
+jest.mock('../../src/constants/fees', () => {
+  // const originalModule = jest.requireActual('../../src/constants/fees');
   return {
     // ...originalModule,
     get DEFAULT_ONELAND_FEE_BASIS_POINTS() {
@@ -34,7 +33,7 @@ jest.mock('../../src/fees', () => {
     },
     get ONELAND_FEE_RECIPIENT() {
       return mockOnelandFeeRecipientGetter();
-    }
+    },
   };
 });
 
@@ -51,13 +50,17 @@ describe('landport order fees', () => {
     mockOnelandFeeRecipientGetter.mockReturnValue(Caro.address);
 
     const price = 0.01;
-    const onelandFee = price * mockDefaultOnelandFeeBasisPointsGetter() / 10000;
+    const onelandFee =
+      (price * mockDefaultOnelandFeeBasisPointsGetter()) / 10000;
     const amount = price - onelandFee;
 
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
-    const [landOwnerWETHBalance, landTakerWETHBalance] = await withAliceAndBobHavingWETH(landOwner, landTaker);
-    const onelandFeeRecipientWETHBalance = await getWETHBalance(mockOnelandFeeRecipientGetter());
+    const [landOwnerWETHBalance, landTakerWETHBalance] =
+      await withAliceAndBobHavingWETH(landOwner, landTaker);
+    const onelandFeeRecipientWETHBalance = await getWETHBalance(
+      mockOnelandFeeRecipientGetter()
+    );
 
     // Create Sell Order
     const asset = {
@@ -98,11 +101,21 @@ describe('landport order fees', () => {
 
     // Asset WETH is transferred
     const updatedLandOwnerWETHBalance = await getWETHBalance(landOwner.address);
-    expect(updatedLandOwnerWETHBalance).toBeCloseTo(landOwnerWETHBalance + amount, 3);
-    const updatedOnelandFeeRecipientWETHBalance = await getWETHBalance(mockOnelandFeeRecipientGetter());
-    expect(updatedOnelandFeeRecipientWETHBalance).toBeCloseTo(onelandFeeRecipientWETHBalance + onelandFee, 3);
+    expect(updatedLandOwnerWETHBalance).toBeCloseTo(
+      landOwnerWETHBalance + amount,
+      3
+    );
+    const updatedOnelandFeeRecipientWETHBalance = await getWETHBalance(
+      mockOnelandFeeRecipientGetter()
+    );
+    expect(updatedOnelandFeeRecipientWETHBalance).toBeCloseTo(
+      onelandFeeRecipientWETHBalance + onelandFee,
+      3
+    );
     const updatedLandTakerWETHBalance = await getWETHBalance(landTaker.address);
-    expect(updatedLandTakerWETHBalance).toBeCloseTo(landTakerWETHBalance - amount - onelandFee, 3);
-    
+    expect(updatedLandTakerWETHBalance).toBeCloseTo(
+      landTakerWETHBalance - amount - onelandFee,
+      3
+    );
   }, 600000 /*10 minutes timeout*/);
 });

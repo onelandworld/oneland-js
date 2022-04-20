@@ -11,6 +11,8 @@ export const RINKEBY_SANDBOX_LAND_TOKEN_ID = 18884;
 export const RINKEBY_WETH_ADDRESS =
   '0xc778417E063141139Fce010982780140Aa0cD5Ab';
 
+export const RINKEBY_WETH_DECIMAL = 18;
+
 export const provider = new ethers.providers.JsonRpcProvider(
   `https://rinkeby.infura.io/v3/${process.env.INFURA_PROJECT_ID}`,
   'rinkeby'
@@ -37,4 +39,4 @@ export const Bob: Account = {
 export const Caro: Account = {
   address: '0xd6c56f7e7d9C0B42cFdb3F05c7436bAbA01CFe39',
   signer: new ethers.Wallet(process.env.CARO_SECRET, provider),
-}
+};

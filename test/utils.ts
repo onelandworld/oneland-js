@@ -10,6 +10,12 @@ import {
 } from './constants';
 import { Account } from './types';
 
+export function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 // Expect Alice or Bob owns the land asset
 export const withAliceOrBobOwningLand = async () => {
   const landOwnerAddress = await sandboxLandAbi.ownerOf(
@@ -36,19 +42,20 @@ export const withAliceAndBobHavingEther = async () => {
 export const getWETHBalance = async (address: string) => {
   const wethDecimal = await wethAbi.decimals();
   const balanceBN = await wethAbi.balanceOf(address);
-  return _.toNumber(
-    ethers.utils.formatUnits(balanceBN, wethDecimal)
-  );
-}
+  return _.toNumber(ethers.utils.formatUnits(balanceBN, wethDecimal));
+};
 
 // Assert Alice and Bob's WETH balance
 const minimalWETHBalance = 0.1;
-export const withAliceAndBobHavingWETH = async (landOwner: Account, landTaker: Account) => {
+export const withAliceAndBobHavingWETH = async (
+  landOwner: Account,
+  landTaker: Account
+) => {
   const landOwnerWETHBalance = await getWETHBalance(landOwner.address);
   expect(landOwnerWETHBalance).toBeGreaterThanOrEqual(minimalWETHBalance);
 
   const landTakerWETHBalance = await getWETHBalance(landTaker.address);
   expect(landTakerWETHBalance).toBeGreaterThanOrEqual(minimalWETHBalance);
-  
+
   return [landOwnerWETHBalance, landTakerWETHBalance];
 };

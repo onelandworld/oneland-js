@@ -1,0 +1,4 @@
+export const MIN_EXPIRATION_MINUTES = 15;
+export const DEFAULT_EXPIRATION_DAYS = 7;
+export const MAX_EXPIRATION_MONTHS = 6;
+export const ORDER_MATCHING_LATENCY_SECONDS = 60 * 60 * 24 * 7;
