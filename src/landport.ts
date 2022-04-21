@@ -124,8 +124,6 @@ export class LandPort {
     accountAddress,
     startAmount,
     endAmount,
-    quantity = 1,
-    maximumFill = 1,
     listingTime,
     expirationTime = getDefaultOrderExpirationTimestamp(),
     waitForHighestBid = false,
@@ -137,8 +135,6 @@ export class LandPort {
     accountAddress: string;
     startAmount: number;
     endAmount?: number;
-    quantity?: number;
-    maximumFill?: number;
     listingTime?: number;
     expirationTime?: number;
     englishAuctionReservePrice?: number;
@@ -157,8 +153,8 @@ export class LandPort {
     }
     const order = await this._makeSellOrder({
       asset,
-      quantity,
-      maximumFill,
+      quantity: 1,
+      maximumFill: 1,
       accountAddress,
       startAmount,
       endAmount,
@@ -199,7 +195,7 @@ export class LandPort {
     accountAddress,
     startAmount,
     endAmount,
-    quantity,
+    quantity = 1,
     maximumFill = 1,
     listingTime,
     expirationTime = getDefaultOrderExpirationTimestamp(),
