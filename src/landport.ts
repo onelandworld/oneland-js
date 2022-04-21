@@ -1790,6 +1790,13 @@ export class LandPort {
             .div(new BigNumber(10000));
     const amount = basePrice.minus(onelandFee).minus(devFee);
 
+    debug(
+      `oneland fee: ${onelandFee.toFixed()}, oneland fee recipient: ${onelandFeeRecipient}`
+    );
+    debug(
+      `dev fee: ${devFee.toFixed()}, dev fee recipient: ${devFeeRecipient}`
+    );
+
     return {
       amount,
       onelandFee,
