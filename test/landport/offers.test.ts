@@ -24,6 +24,7 @@ import {
   toBaseUnitAmount,
   orderToJSON,
   orderFromJSON,
+  NULL_ADDRESS,
 } from '../../src';
 
 const dayjs = require('dayjs');
@@ -46,74 +47,72 @@ jest.mock('../../src/constants/orders', () => {
   };
 });
 
-describe('landport orders', () => {
+describe('landport offers', () => {
   beforeEach(() => {
     mockMinExpirationMinutesGetter.mockClear();
   });
 
   // Note: Use test.only(...) to run specific test only
-  test('Swapping NFT with Ether does not work', async () => {
-    const [landOwner] = await withAliceOrBobOwningLand();
-
-    // Create Sell Order
-    const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
-      schemaName: WyvernSchemaName.ERC721,
-    };
-    const landOwnerPort = new LandPort(
-      provider,
-      { network: Network.Rinkeby },
-      landOwner.signer,
-      (msg: any) => console.log(msg)
-    );
-    await expect(
-      landOwnerPort.createSellOrder({
-        asset,
-        accountAddress: landOwner.address,
-        startAmount: 0.01,
-      })
-    ).rejects.toThrow('Trading with ETH is not supported');
-  }, 600000 /*10 minutes timeout*/);
-
-  test('Swapping NFT with WETH works', async () => {
+  test('Making offer with Ether does not work', async () => {
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
-    await withAliceAndBobHavingEther();
-    const [landOwnerWETHBalance, landTakerWETHBalance] =
-      await withAliceAndBobHavingWETH(landOwner, landTaker);
 
-    // Create Sell Order
     const asset = {
       tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
       tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
-    const price = 0.01;
-    const landOwnerPort = new LandPort(
-      provider,
-      { network: Network.Rinkeby },
-      landOwner.signer,
-      (msg: any) => console.log(msg)
-    );
-    const order = await landOwnerPort.createSellOrder({
-      asset,
-      accountAddress: landOwner.address,
-      startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
-    });
-    const orderJson = orderToJSON(order);
-    const buyOrder = orderFromJSON(orderJson);
-
-    // Fulfill order
     const landTakerPort = new LandPort(
       provider,
       { network: Network.Rinkeby },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
-    await landTakerPort.fulfillOrder({
-      order: buyOrder,
+    await expect(
+      landTakerPort.createBuyOrder({
+        asset,
+        accountAddress: landTaker.address,
+        startAmount: 0.01,
+        paymentTokenAddress: NULL_ADDRESS,
+      })
+    ).rejects.toThrow('ERC20 payment token required');
+  }, 600000 /*10 minutes timeout*/);
+
+  test('Offering with WETH works', async () => {
+    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    await withAliceAndBobHavingEther();
+    const [landOwnerWETHBalance, landTakerWETHBalance] =
+      await withAliceAndBobHavingWETH(landOwner, landTaker);
+
+    const asset = {
+      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
+      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      schemaName: WyvernSchemaName.ERC721,
+    };
+    const price = 0.01;
+    const landTakerPort = new LandPort(
+      provider,
+      { network: Network.Rinkeby },
+      landTaker.signer,
+      (msg: any) => console.log(msg)
+    );
+    const order = await landTakerPort.createBuyOrder({
+      asset,
       accountAddress: landTaker.address,
+      startAmount: price,
+      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+    });
+    const orderJson = orderToJSON(order);
+    const buyOrder = orderFromJSON(orderJson);
+
+    const landOwnerPort = new LandPort(
+      provider,
+      { network: Network.Rinkeby },
+      landOwner.signer,
+      (msg: any) => console.log(msg)
+    );
+    await landOwnerPort.fulfillOrder({
+      order: buyOrder,
+      accountAddress: landOwner.address,
     });
 
     // Assert NFT is transferred
@@ -129,32 +128,7 @@ describe('landport orders', () => {
     expect(updatedLandTakerWETHBalance).toEqual(landTakerWETHBalance - price);
   }, 600000 /*10 minutes timeout*/);
 
-  test('Could not sell NFT with 0 ERC20 price', async () => {
-    const [landOwner] = await withAliceOrBobOwningLand();
-
-    // Create Sell Order
-    const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
-      schemaName: WyvernSchemaName.ERC721,
-    };
-    const landOwnerPort = new LandPort(
-      provider,
-      { network: Network.Rinkeby },
-      landOwner.signer,
-      (msg: any) => console.log(msg)
-    );
-    await expect(
-      landOwnerPort.createSellOrder({
-        asset,
-        accountAddress: landOwner.address,
-        startAmount: 0,
-        paymentTokenAddress: RINKEBY_WETH_ADDRESS,
-      })
-    ).rejects.toThrow('Starting price must be a number > 0');
-  }, 600000 /*10 minutes timeout*/);
-
-  test('Could not sell not-owned NFT', async () => {
+  test('Could not offer with 0 ERC20 price', async () => {
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
 
     const asset = {
@@ -169,42 +143,34 @@ describe('landport orders', () => {
       (msg: any) => console.log(msg)
     );
     await expect(
-      landTakerPort.createSellOrder({
+      landTakerPort.createBuyOrder({
         asset,
         accountAddress: landTaker.address,
-        startAmount: 0.01,
+        startAmount: 0,
         paymentTokenAddress: RINKEBY_WETH_ADDRESS,
       })
-    ).rejects.toThrow(/You don't own enough to do that/);
+    ).rejects.toThrow('Starting price must be a number > 0');
   }, 600000 /*10 minutes timeout*/);
 
-  test('Cancelled Orders could not be matched', async () => {
+  test('Could not offer and match for self-owned NFT', async () => {
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
-    await withAliceAndBobHavingEther();
-    await withAliceAndBobHavingWETH(landOwner, landTaker);
 
     const asset = {
       tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
       tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
-    const price = 0.01;
     const landOwnerPort = new LandPort(
       provider,
       { network: Network.Rinkeby },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await landOwnerPort.createBuyOrder({
       asset,
       accountAddress: landOwner.address,
-      startAmount: price,
+      startAmount: 0.01,
       paymentTokenAddress: RINKEBY_WETH_ADDRESS,
-    });
-
-    await landOwnerPort.cancelOrder({
-      order,
-      accountAddress: landOwner.address,
     });
 
     const orderJson = orderToJSON(order);
@@ -221,10 +187,58 @@ describe('landport orders', () => {
         order: buyOrder,
         accountAddress: landTaker.address,
       })
-    ).rejects.toThrow(/execution reverted: First order has invalid parameters/);
+    ).rejects.toThrow(/You don't own enough to do that/);
   }, 600000 /*10 minutes timeout*/);
 
-  test('Order could not be matched with lower price', async () => {
+  test('Cancelled offers could not be matched', async () => {
+    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    await withAliceAndBobHavingEther();
+    await withAliceAndBobHavingWETH(landOwner, landTaker);
+
+    const asset = {
+      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
+      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      schemaName: WyvernSchemaName.ERC721,
+    };
+    const price = 0.01;
+    const landTakerPort = new LandPort(
+      provider,
+      { network: Network.Rinkeby },
+      landTaker.signer,
+      (msg: any) => console.log(msg)
+    );
+    const order = await landTakerPort.createBuyOrder({
+      asset,
+      accountAddress: landOwner.address,
+      startAmount: price,
+      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+    });
+
+    await landTakerPort.cancelOrder({
+      order,
+      accountAddress: landTaker.address,
+    });
+
+    const orderJson = orderToJSON(order);
+    const buyOrder = orderFromJSON(orderJson);
+
+    const landOwnerPort = new LandPort(
+      provider,
+      { network: Network.Rinkeby },
+      landOwner.signer,
+      (msg: any) => console.log(msg)
+    );
+    await expect(
+      landOwnerPort.fulfillOrder({
+        order: buyOrder,
+        accountAddress: landOwner.address,
+      })
+    ).rejects.toThrow(
+      'Invalid buy order. It may have recently been removed. Please refresh the page and try again!'
+    );
+  }, 600000 /*10 minutes timeout*/);
+
+  test('Offers could not be matched with higher price', async () => {
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
     const [landOwnerWETHBalance, landTakerWETHBalance] =
@@ -236,42 +250,42 @@ describe('landport orders', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
-      provider,
-      { network: Network.Rinkeby },
-      landOwner.signer,
-      (msg: any) => console.log(msg)
-    );
-    const order = await landOwnerPort.createSellOrder({
-      asset,
-      accountAddress: landOwner.address,
-      startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
-    });
-    const orderJson = orderToJSON(order);
-    const buyOrder = orderFromJSON(orderJson);
-
-    // Try to lower the price
-    buyOrder.basePrice = toBaseUnitAmount(
-      new BigNumber(0.005),
-      RINKEBY_WETH_DECIMAL
-    );
-
     const landTakerPort = new LandPort(
       provider,
       { network: Network.Rinkeby },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
+    const order = await landTakerPort.createBuyOrder({
+      asset,
+      accountAddress: landTaker.address,
+      startAmount: price,
+      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+    });
+    const orderJson = orderToJSON(order);
+    const buyOrder = orderFromJSON(orderJson);
+
+    // Try to higher the price
+    buyOrder.basePrice = toBaseUnitAmount(
+      new BigNumber(0.02),
+      RINKEBY_WETH_DECIMAL
+    );
+
+    const landOwnerPort = new LandPort(
+      provider,
+      { network: Network.Rinkeby },
+      landOwner.signer,
+      (msg: any) => console.log(msg)
+    );
     await expect(
-      landTakerPort.fulfillOrder({
+      landOwnerPort.fulfillOrder({
         order: buyOrder,
-        accountAddress: landTaker.address,
+        accountAddress: landOwner.address,
       })
     ).rejects.toThrow(/error/);
   }, 600000 /*10 minutes timeout*/);
 
-  test('Expired Orders could not be matched', async () => {
+  test('Expired offers could not be matched', async () => {
     mockMinExpirationMinutesGetter.mockReturnValue(1);
 
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
@@ -284,13 +298,13 @@ describe('landport orders', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
+    const landTakerPort = new LandPort(
       provider,
       { network: Network.Rinkeby },
-      landOwner.signer,
+      landTaker.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await landTakerPort.createBuyOrder({
       asset,
       accountAddress: landOwner.address,
       startAmount: price,
@@ -304,21 +318,21 @@ describe('landport orders', () => {
 
     // sleep 1 minute to wait for the order to expire
     await sleep(60 * 1000);
-    const landTakerPort = new LandPort(
+    const landOwnerPort = new LandPort(
       provider,
       { network: Network.Rinkeby },
-      landTaker.signer,
+      landOwner.signer,
       (msg: any) => console.log(msg)
     );
     await expect(
-      landTakerPort.fulfillOrder({
+      landOwnerPort.fulfillOrder({
         order: buyOrder,
-        accountAddress: landTaker.address,
+        accountAddress: landOwner.address,
       })
-    ).rejects.toThrow(/execution reverted: First order has invalid parameters/);
+    ).rejects.toThrow(/Invalid buy order/);
   }, 600000 /*10 minutes timeout*/);
 
-  test('Order could not be matched twice', async () => {
+  test('Offer could only be fulfilled by NFT owner', async () => {
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
     await withAliceAndBobHavingWETH(landOwner, landTaker);
@@ -329,39 +343,22 @@ describe('landport orders', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
-      provider,
-      { network: Network.Rinkeby },
-      landOwner.signer,
-      (msg: any) => console.log(msg)
-    );
-    const order = await landOwnerPort.createSellOrder({
-      asset,
-      accountAddress: landOwner.address,
-      startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
-    });
-    const orderJson = orderToJSON(order);
-    const buyOrder = orderFromJSON(orderJson);
-
     const landTakerPort = new LandPort(
       provider,
       { network: Network.Rinkeby },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
-    await landTakerPort.fulfillOrder({
-      order: buyOrder,
+    const order = await landTakerPort.createBuyOrder({
+      asset,
       accountAddress: landTaker.address,
+      startAmount: price,
+      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
     });
+    const orderJson = orderToJSON(order);
+    const buyOrder = orderFromJSON(orderJson);
 
-    // Assert NFT is transferred
-    const landOwnerAddress = await sandboxLandAbi.ownerOf(
-      EthBigNumber.from(RINKEBY_SANDBOX_LAND_TOKEN_ID)
-    );
-    expect(landOwnerAddress).toEqual(landTaker.address);
-
-    // Now Caro wants to fulfill this order again
+    // Caro wants to fulfill this buy order
     const landPortOfCaro = new LandPort(
       provider,
       { network: Network.Rinkeby },

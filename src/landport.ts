@@ -119,6 +119,57 @@ export class LandPort {
     this.logger = logger || ((arg: string) => arg);
   }
 
+  public async createBuyOrder({
+    asset,
+    accountAddress,
+    startAmount,
+    expirationTime = getDefaultOrderExpirationTimestamp(),
+    paymentTokenAddress,
+  }: {
+    asset: Asset;
+    accountAddress: string;
+    startAmount: number;
+    expirationTime?: number;
+    paymentTokenAddress: string;
+    sellOrder?: UnhashedOrder;
+  }): Promise<Order> {
+    if (
+      !paymentTokenAddress ||
+      paymentTokenAddress.toLocaleLowerCase() === NULL_ADDRESS
+    ) {
+      throw new Error('ERC20 payment token required');
+    }
+
+    const order = await this._makeBuyOrder({
+      asset,
+      quantity: 1,
+      maximumFill: 1,
+      accountAddress,
+      startAmount,
+      expirationTime,
+      paymentTokenAddress,
+    });
+
+    await this._buyOrderValidationAndApprovals({ order, accountAddress });
+    const hashedOrder = {
+      ...order,
+      hash: getOrderHash(order),
+    };
+    let signature;
+    try {
+      signature = await this.authorizeOrder(hashedOrder);
+    } catch (error) {
+      console.error(error);
+      throw new Error('You declined to authorize your offer');
+    }
+
+    const orderWithSignature = {
+      ...hashedOrder,
+      ...signature,
+    };
+    return this.validateAndPostOrder(orderWithSignature);
+  }
+
   public async createSellOrder({
     asset,
     accountAddress,
@@ -188,6 +239,91 @@ export class LandPort {
     };
 
     return this.validateAndPostOrder(orderWithSignature).then(nextStep);
+  }
+
+  public async _makeBuyOrder({
+    asset,
+    quantity,
+    maximumFill,
+    accountAddress,
+    startAmount,
+    expirationTime = getDefaultOrderExpirationTimestamp(),
+    paymentTokenAddress,
+  }: {
+    asset: Asset;
+    quantity: number;
+    maximumFill: number;
+    accountAddress: string;
+    startAmount: number;
+    expirationTime?: number;
+    paymentTokenAddress: string;
+  }): Promise<UnhashedOrder> {
+    accountAddress = validateAndFormatWalletAddress(accountAddress);
+    const quantityBN = new BigNumber(quantity);
+    const maximumFillBN = new BigNumber(maximumFill);
+
+    const wyAsset = getWyvernAsset(asset, quantityBN);
+    const oneLandAsset = await this.api.getAsset(asset);
+
+    const { basePrice, extra, paymentToken } = await this._getPriceParameters(
+      OrderSide.Buy,
+      paymentTokenAddress,
+      expirationTime,
+      startAmount
+    );
+
+    const { amount, onelandFee, onelandFeeRecipient, devFee, devFeeRecipient } =
+      await this.computeFees({
+        asset: oneLandAsset,
+        basePrice,
+      });
+
+    const times = this._getTimeParameters({
+      expirationTimestamp: expirationTime,
+    });
+
+    const { staticTarget, staticSelector, staticExtradata } =
+      this._getStaticCallData({
+        paymentTokenAddress,
+        tokenAddress: asset.tokenAddress,
+        tokenId: asset.tokenId,
+        side: OrderSide.Buy,
+        buyingPrice: basePrice,
+        amount,
+        onelandFee,
+        onelandFeeRecipient,
+        devFee,
+        devFeeRecipient,
+      });
+
+    return {
+      registry: this._wyvernRegistryAbi.address,
+      exchange: this._wyvernExchangeAbi.address,
+      maker: accountAddress,
+      quantity: quantityBN,
+      maximumFill: maximumFillBN,
+      amount,
+      onelandFee,
+      onelandFeeRecipient,
+      devFee,
+      devFeeRecipient,
+      side: OrderSide.Buy,
+      saleKind: SaleKind.FixedPrice,
+      staticTarget,
+      staticSelector,
+      staticExtradata,
+      tokenAddress: asset.tokenAddress,
+      tokenId: asset.tokenId,
+      paymentToken,
+      basePrice,
+      listingTime: times.listingTime,
+      expirationTime: times.expirationTime,
+      salt: generatePseudoRandomSalt(),
+      metadata: {
+        asset: wyAsset,
+        schema: asset.schemaName as WyvernSchemaName,
+      },
+    };
   }
 
   public async _makeSellOrder({
@@ -294,7 +430,6 @@ export class LandPort {
     };
   }
 
-  // Throws
   public async _sellOrderValidationAndApprovals({
     order,
     accountAddress,
@@ -516,12 +651,10 @@ export class LandPort {
     order,
     accountAddress,
     recipientAddress,
-    referrerAddress,
   }: {
     order: Order;
     accountAddress: string;
     recipientAddress?: string;
-    referrerAddress?: string;
   }): Promise<string> {
     // debug('fulfillOrder', order);
     const proxyAccount = await this._getProxy(accountAddress);
@@ -560,7 +693,6 @@ export class LandPort {
       matchingOrderWithSignature
     );
 
-    const metadata = this._getMetadata(order, referrerAddress);
     const transaction = await this._atomicMatch({
       buy,
       sell,
@@ -582,12 +714,14 @@ export class LandPort {
     accountAddress = validateAndFormatWalletAddress(accountAddress);
     recipientAddress = validateAndFormatWalletAddress(recipientAddress);
 
+    const side = (order.side + 1) % 2;
     const { staticTarget, staticSelector, staticExtradata } =
       this._getStaticCallData({
         paymentTokenAddress: order.paymentToken,
-        side: OrderSide.Buy,
+        side,
         tokenAddress: order.tokenAddress,
         tokenId: order.tokenId,
+        sellingPrice: order.basePrice,
         buyingPrice: order.basePrice,
         amount: order.amount,
         onelandFee: order.onelandFee,
@@ -607,7 +741,7 @@ export class LandPort {
       maker: accountAddress,
       quantity: order.quantity,
       maximumFill: order.maximumFill,
-      side: (order.side + 1) % 2,
+      side,
       saleKind: SaleKind.FixedPrice,
       staticTarget: staticTarget,
       staticSelector: staticSelector,
@@ -702,8 +836,8 @@ export class LandPort {
       // User is neither - matching service
     }
 
-    debug('** Buy order: ', buy);
-    debug('** Sell order: ', sell);
+    debug('Buy order: ', buy);
+    debug('Sell order: ', sell);
     debug(
       `accountAddress: ${accountAddress}, shouldValidateSell: ${shouldValidateSell}, shouldValidateBuy: ${shouldValidateBuy}`
     );
@@ -1060,11 +1194,10 @@ export class LandPort {
       order.maker,
       signature
     );
-    debug(`** validateOrderAuthorization_, ${isValid}`);
+    debug(`validateOrderAuthorization_, ${isValid}`);
     return isValid;
   }
 
-  // Throws
   public async _buyOrderValidationAndApprovals({
     order,
     counterOrder,
@@ -1728,6 +1861,7 @@ export class LandPort {
     }
   }
 
+  // TODO
   private _getStaticCallDataForEtherOrder({
     tokenAddress,
     tokenId,
