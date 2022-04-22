@@ -13,6 +13,7 @@ import {
   provider,
   sandboxLandAbi,
   Caro,
+  Dave,
 } from '../constants';
 import {
   LandPort,
@@ -51,11 +52,13 @@ jest
 const mockApiGetAssetResult = ({
   tokenAddress,
   tokenId,
+  onelandFeeBasisPoints,
   devFeeBasisPoints,
   devFeeRecipient,
 }: {
   tokenAddress: string;
   tokenId: string | null;
+  onelandFeeBasisPoints: number;
   devFeeBasisPoints: number;
   devFeeRecipient: string;
 }) => {
@@ -74,7 +77,8 @@ const mockApiGetAssetResult = ({
       slug: 'sandbox',
       description: '',
       createdDate: new Date(),
-      devFeeBasisPoints: devFeeBasisPoints,
+      onelandFeeBasisPoints,
+      devFeeBasisPoints,
       payoutAddress: devFeeRecipient,
     },
     name: '',
@@ -175,8 +179,11 @@ describe('landport order fees', () => {
     mockDefaultOnelandFeeBasisPointsGetter.mockReturnValue(100);
     // Set oneland fee recipient to Caro
     mockOnelandFeeRecipientGetter.mockReturnValue(Caro.address);
-    // Set dev fee to 5% and recipient to Caro
+    // Overwrite oneland fee to 2% (for this collection only)
+    const mockCollectionOnelandFeeBasisPoints = 200;
+    // Set dev fee to 5% and recipient to Dave
     const mockDevFeeBasisPoints = 500;
+    const mockDevFeeRecipient = Dave.address;
     mockApiGetAsset.mockImplementation(
       async (
         {
@@ -191,15 +198,15 @@ describe('landport order fees', () => {
         return mockApiGetAssetResult({
           tokenAddress,
           tokenId,
+          onelandFeeBasisPoints: mockCollectionOnelandFeeBasisPoints,
           devFeeBasisPoints: mockDevFeeBasisPoints,
-          devFeeRecipient: Caro.address,
+          devFeeRecipient: mockDevFeeRecipient,
         });
       }
     );
 
     const price = 0.01;
-    const onelandFee =
-      (price * mockDefaultOnelandFeeBasisPointsGetter()) / 10000;
+    const onelandFee = (price * mockCollectionOnelandFeeBasisPoints) / 10000;
     const devFee = (price * mockDevFeeBasisPoints) / 10000;
     const amount = price - onelandFee - devFee;
 
@@ -209,6 +216,9 @@ describe('landport order fees', () => {
       await withAliceAndBobHavingWETH(landOwner, landTaker);
     const onelandFeeRecipientWETHBalance = await getWETHBalance(
       mockOnelandFeeRecipientGetter()
+    );
+    const devFeeRecipientWETHBalance = await getWETHBalance(
+      mockDevFeeRecipient
     );
 
     const asset = {
@@ -256,7 +266,14 @@ describe('landport order fees', () => {
       mockOnelandFeeRecipientGetter()
     );
     expect(updatedOnelandFeeRecipientWETHBalance).toBeCloseTo(
-      onelandFeeRecipientWETHBalance + onelandFee + devFee,
+      onelandFeeRecipientWETHBalance + onelandFee,
+      3
+    );
+    const updatedDevFeeRecipientWETHBalance = await getWETHBalance(
+      mockDevFeeRecipient
+    );
+    expect(updatedDevFeeRecipientWETHBalance).toBeCloseTo(
+      devFeeRecipientWETHBalance + devFee,
       3
     );
     const updatedLandTakerWETHBalance = await getWETHBalance(landTaker.address);

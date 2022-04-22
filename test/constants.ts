@@ -40,3 +40,8 @@ export const Caro: Account = {
   address: '0xd6c56f7e7d9C0B42cFdb3F05c7436bAbA01CFe39',
   signer: new ethers.Wallet(process.env.CARO_SECRET, provider),
 };
+
+export const Dave: Account = {
+  address: '0xBa7Bc2e4EF990cc608fa9539f4ea04dD52178440',
+  signer: new ethers.Wallet(process.env.DAVE_SECRET, provider),
+};

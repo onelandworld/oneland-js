@@ -4,7 +4,7 @@
 $ npm login --registry=https://registry.npmjs.org
 $ npm whoami
 # Publish package via `np` command (Version number in package.json will be auto updated and committed).
-$ yarn np 1.0.0
+$ yarn np [1.0.0]
 ```
 
 # Development
