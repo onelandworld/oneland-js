@@ -35,7 +35,7 @@
     "anyBranch": false,
     "branch": "main",
     "cleanup": true,
-    "tests": true,
+    "tests": false,
     "yarn": true,
     "contents": "."
   },
