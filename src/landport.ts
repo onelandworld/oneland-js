@@ -28,6 +28,7 @@ import {
   ERC20Abi__factory,
   ERC721Abi__factory,
   StaticMarketAbi,
+  WETHAbi,
 } from './typechain';
 import {
   WyvernRegistry,
@@ -35,6 +36,7 @@ import {
   WyvernAtomicizer,
   WyvernStatic,
   StaticMarket,
+  WETH,
 } from './contracts';
 import {
   getDefaultOrderExpirationTimestamp,
@@ -68,7 +70,6 @@ import {
   MAX_ONELAND_FEE_BASIS_POINTS,
   MAX_DEV_FEE_BASIS_POINTS,
 } from './constants';
-import { tokens } from './tokens';
 import { OneLandAPI } from './api';
 
 export class LandPort {
@@ -81,6 +82,7 @@ export class LandPort {
   private _wyvernAtomicizerAbi: WyvernAtomicizerAbi;
   private _wyvernStaticAbi: WyvernStaticAbi;
   private _staticMarketAbi: StaticMarketAbi;
+  private _wethAbi: WETHAbi;
   private logger: (arg: string) => void;
 
   constructor(
@@ -114,9 +116,49 @@ export class LandPort {
       this._network,
       this._provider
     );
+    this._wethAbi = WETH.getAbiClass(this._network, this._provider);
 
     // Debugging: default to nothing
     this.logger = logger || ((arg: string) => arg);
+  }
+
+  public async wrapEth({
+    amountInEth,
+    accountAddress,
+  }: {
+    amountInEth: number;
+    accountAddress: string;
+  }) {
+    const decimals = await this._wethAbi.decimals();
+    const amount = toBaseUnitAmount(new BigNumber(amountInEth), decimals);
+
+    const wethAbi = this._wethAbi.connect(
+      this._signer || this._provider.getSigner(accountAddress)
+    );
+    const transaction = await wethAbi.deposit({
+      from: accountAddress,
+      value: toEthBigNumber(amount),
+    });
+    await transaction.wait();
+  }
+
+  public async unwrapWeth({
+    amountInEth,
+    accountAddress,
+  }: {
+    amountInEth: number;
+    accountAddress: string;
+  }) {
+    const decimals = await this._wethAbi.decimals();
+    const amount = toBaseUnitAmount(new BigNumber(amountInEth), decimals);
+
+    const wethAbi = this._wethAbi.connect(
+      this._signer || this._provider.getSigner(accountAddress)
+    );
+    const transaction = await wethAbi.withdraw(toEthBigNumber(amount), {
+      from: accountAddress,
+    });
+    await transaction.wait();
   }
 
   public async createBuyOrder({
@@ -1225,9 +1267,7 @@ export class LandPort {
 
       // Check WETH balance
       if (balance.toNumber() < minimumAmount.toNumber()) {
-        if (
-          tokenAddress === tokens[this._network].canonicalWrappedEther.address
-        ) {
+        if (tokenAddress === this._wethAbi.address) {
           throw new Error('Insufficient balance. You may need to wrap Ether.');
         } else {
           throw new Error('Insufficient balance.');

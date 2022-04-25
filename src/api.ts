@@ -12,7 +12,6 @@ import {
 } from './types';
 import { orderFromJSON } from './utils';
 import { deployed } from './contracts/deployed';
-import { tokens as OfflineTokens } from './tokens';
 
 // TODO: fetch from backend API service
 export class OneLandAPI {
@@ -87,7 +86,14 @@ export class OneLandAPI {
     retries = 1
   ): Promise<{ tokens: OneLandFungibleToken[] }> {
     return {
-      tokens: [OfflineTokens[`${this._network}`].canonicalWrappedEther],
+      tokens: [
+        {
+          name: 'Rinkeby Canonical Wrapped Ether',
+          symbol: 'WETH',
+          decimals: 18,
+          address: '0xc778417e063141139fce010982780140aa0cd5ab',
+        },
+      ],
     };
   }
 

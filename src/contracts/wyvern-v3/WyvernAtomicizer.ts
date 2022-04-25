@@ -9,7 +9,7 @@ import { deployed } from '../deployed';
 
 export class WyvernAtomicizer {
   static getContractAddress(network: Network): string {
-    return _.get(deployed, `${network}.WyvernAtomicizer`);
+    return _.get(deployed, `${network}.wyvern.WyvernAtomicizer`);
   }
 
   static getAbiClass(

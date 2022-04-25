@@ -6,7 +6,7 @@ import { deployed } from '../deployed';
 
 export class StaticMarket {
   static getContractAddress(network: Network): string {
-    return _.get(deployed, `${network}.StaticMarket`);
+    return _.get(deployed, `${network}.wyvern.StaticMarket`);
   }
 
   static getAbiClass(

@@ -8,7 +8,7 @@ import { NULL_ADDRESS } from '../../constants';
 
 export class WyvernRegistry {
   static getContractAddress(network: Network): string {
-    return _.get(deployed, `${network}.WyvernRegistry`);
+    return _.get(deployed, `${network}.wyvern.WyvernRegistry`);
   }
 
   static getAbiClass(
