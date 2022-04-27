@@ -139,7 +139,7 @@ export class LandPort {
       from: accountAddress,
       value: toEthBigNumber(amount),
     });
-    await transaction.wait();
+    return await transaction.wait();
   }
 
   public async unwrapWeth({
@@ -158,7 +158,7 @@ export class LandPort {
     const transaction = await wethAbi.withdraw(toEthBigNumber(amount), {
       from: accountAddress,
     });
-    await transaction.wait();
+    return await transaction.wait();
   }
 
   public async createBuyOrder({
@@ -1706,7 +1706,7 @@ export class LandPort {
     const { tokens } = await this.api.getPaymentTokens({
       address: paymentToken,
     });
-    const token = tokens[0];
+    const token = tokens[0]
 
     // Validation
     if (isNaN(startAmount) || startAmount === null || startAmount <= 0) {
