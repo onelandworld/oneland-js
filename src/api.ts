@@ -38,11 +38,11 @@ export class OneLandAPI {
   }
 
   public getProject(contract: string) {
-    const address =contract.toLowerCase()
+    const address = contract.toLowerCase();
     if (this._network === Network.Main) {
-      return ProdProjects.find(item => item.contract === address)
+      return ProdProjects.find((item) => item.contract === address);
     }
-    return TestProjects.find(item => item.contract === address)
+    return TestProjects.find((item) => item.contract === address);
   }
 
   private toOnelandAsset(asset: any): OneLandAsset {
@@ -70,7 +70,7 @@ export class OneLandAPI {
       buyOrders: null,
       sellOrders: null,
       isPresale: false,
-    }
+    };
   }
 
   public async getAsset(
@@ -83,14 +83,18 @@ export class OneLandAPI {
     },
     retries = 1
   ): Promise<OneLandAsset> {
-    const p = this.getProject(tokenAddress)
-    if (!p) throw new Error(`not support tokenAddrees: ${tokenAddress}`)
-    return axios.get(`${this.hostUrl}/api/v1/lands/project/${p.id}/lands/detail/${tokenId}`)
+    const p = this.getProject(tokenAddress);
+    if (!p) throw new Error(`not support tokenAddrees: ${tokenAddress}`);
+    return axios
+      .get(
+        `${this.hostUrl}/api/v1/lands/project/${p.id}/lands/detail/${tokenId}`
+      )
       .then((asset) => this.toOnelandAsset(asset.data.data))
-      .catch(error => {
-        if (retries > 0) return this.getAsset({tokenAddress, tokenId}, retries - 1)
+      .catch((error) => {
+        if (retries > 0)
+          return this.getAsset({ tokenAddress, tokenId }, retries - 1);
         else throw error;
-      })
+      });
   }
 
   /**
@@ -105,47 +109,50 @@ export class OneLandAPI {
     page = 1,
     retries = 1
   ): Promise<{ tokens: OneLandFungibleToken[] }> {
-    let tokens = this._network === Network.Main ? [
-      {
-        name: 'Wrapped Ether',
-        symbol: 'WETH',
-        decimals: 18,
-        address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2'
-      },
-      {
-        name: 'USD Coin',
-        symbol: 'USDC',
-        decimals: 6,
-        address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
-      },
-      {
-        name: 'Tether USD',
-        symbol: 'USDT',
-        decimals: 6,
-        address: '0xdac17f958d2ee523a2206206994597c13d831ec7'
-      },
-    ]: [
-      {
-        name: 'Wrapped Ether',
-        symbol: 'WETH',
-        decimals: 18,
-        address: '0xc778417e063141139fce010982780140aa0cd5ab'
-      },
-      {
-        name: 'USD Coin',
-        symbol: 'USDC',
-        decimals: 6,
-        address: '0x19d31b7e068b5e1ec77fbc66116d686c82f169c2'
-      },
-      {
-        name: 'Tether USD',
-        symbol: 'USDT',
-        decimals: 6,
-        address: '0xd92e713d051c37ebb2561803a3b5fbabc4962431'
-      },
-        ]
+    let tokens =
+      this._network === Network.Main
+        ? [
+            {
+              name: 'Wrapped Ether',
+              symbol: 'WETH',
+              decimals: 18,
+              address: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
+            },
+            {
+              name: 'USD Coin',
+              symbol: 'USDC',
+              decimals: 6,
+              address: '0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48',
+            },
+            {
+              name: 'Tether USD',
+              symbol: 'USDT',
+              decimals: 6,
+              address: '0xdac17f958d2ee523a2206206994597c13d831ec7',
+            },
+          ]
+        : [
+            {
+              name: 'Wrapped Ether',
+              symbol: 'WETH',
+              decimals: 18,
+              address: '0xc778417e063141139fce010982780140aa0cd5ab',
+            },
+            {
+              name: 'USD Coin',
+              symbol: 'USDC',
+              decimals: 6,
+              address: '0x19d31b7e068b5e1ec77fbc66116d686c82f169c2',
+            },
+            {
+              name: 'Tether USD',
+              symbol: 'USDT',
+              decimals: 6,
+              address: '0xd92e713d051c37ebb2561803a3b5fbabc4962431',
+            },
+          ];
     if (query.address) {
-      tokens = tokens.filter(item => item.address === query.address)
+      tokens = tokens.filter((item) => item.address === query.address);
     }
     return { tokens };
   }
@@ -158,12 +165,13 @@ export class OneLandAPI {
    * @param retries Number of times to retry if the service is unavailable for any reason
    */
   public async postOrder(orderJson: OrderJSON, retries = 2): Promise<Order> {
-    return axios.post(`${this.hostUrl}/api/market/order`, orderJson)
+    return axios
+      .post(`${this.hostUrl}/api/market/order`, orderJson)
       .then(() => orderFromJSON(orderJson))
-      .catch(error => {
-        if (retries > 0) return this.postOrder(orderJson, retries - 1)
+      .catch((error) => {
+        if (retries > 0) return this.postOrder(orderJson, retries - 1);
         else throw error;
-      })
+      });
   }
 
   /**

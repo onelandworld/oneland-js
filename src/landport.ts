@@ -1706,7 +1706,7 @@ export class LandPort {
     const { tokens } = await this.api.getPaymentTokens({
       address: paymentToken,
     });
-    const token = tokens[0]
+    const token = tokens[0];
 
     // Validation
     if (isNaN(startAmount) || startAmount === null || startAmount <= 0) {
