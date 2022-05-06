@@ -18,23 +18,24 @@ import { ProdProjects, TestProjects } from './constants';
 export class OneLandAPI {
   public readonly hostUrl: string;
 
-  public readonly apiBaseUrl: string;
 
   private _network: Network;
 
   constructor(config: OneLandAPIConfig) {
     this._network = config.network!;
-    switch (config.network) {
-      case Network.Rinkeby:
-        this.apiBaseUrl = '';
-        this.hostUrl = 'https://test-api.oneland.world';
-        break;
-      case Network.Main:
-      default:
-        this.apiBaseUrl = '';
-        this.hostUrl = '';
-        break;
-    }
+    if (config.hostUrl) {
+      this.hostUrl = config.hostUrl;
+    } else {
+      switch (config.network) {
+        case Network.Rinkeby:
+          this.hostUrl = 'https://test-api.oneland.world';
+          break;
+        case Network.Main:
+        default:
+          this.hostUrl = 'https://api.oneland.world';
+          break;
+      }
+    } 
   }
 
   public getProject(contract: string) {
