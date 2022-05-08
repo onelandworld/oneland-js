@@ -37,12 +37,12 @@ export class OneLandAPI {
 
   private toOnelandAsset(asset: any): OneLandAsset {
     return {
-      tokenAddress: asset.landContractAddress[0],
+      tokenAddress: asset.token_address,
       tokenId: asset.token_id,
       schemaName: WyvernSchemaName.ERC721,
       assetContract: {
         name: asset.landName,
-        address: asset.landContractAddress[0],
+        address: asset.token_address,
         type: AssetContractType.NonFungible,
         schemaName: WyvernSchemaName.ERC721,
       },
