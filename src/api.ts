@@ -11,13 +11,10 @@ import {
   Order,
 } from './types';
 import { orderFromJSON } from './utils';
-import { deployed } from './contracts/deployed';
 import axios from 'axios';
-import { ProdProjects, TestProjects } from './constants';
 // TODO: fetch from backend API service
 export class OneLandAPI {
   public readonly hostUrl: string;
-
 
   private _network: Network;
 
@@ -35,15 +32,7 @@ export class OneLandAPI {
           this.hostUrl = 'https://api.oneland.world';
           break;
       }
-    } 
-  }
-
-  public getProject(contract: string) {
-    const address = contract.toLowerCase();
-    if (this._network === Network.Main) {
-      return ProdProjects.find((item) => item.contract === address);
     }
-    return TestProjects.find((item) => item.contract === address);
   }
 
   private toOnelandAsset(asset: any): OneLandAsset {
@@ -84,11 +73,9 @@ export class OneLandAPI {
     },
     retries = 1
   ): Promise<OneLandAsset> {
-    const p = this.getProject(tokenAddress);
-    if (!p) throw new Error(`not support tokenAddrees: ${tokenAddress}`);
     return axios
       .get(
-        `${this.hostUrl}/api/v1/lands/project/${p.id}/lands/detail/${tokenId}`
+        `${this.hostUrl}/api/v1/lands/project/${tokenAddress}/lands/detail/${tokenId}`
       )
       .then((asset) => this.toOnelandAsset(asset.data.data))
       .catch((error) => {
