@@ -401,7 +401,7 @@ export class LandPort {
     const oneLandAsset = await this.api.getAsset(asset);
 
     const orderSaleKind =
-      endAmount !== null && endAmount !== startAmount
+      endAmount && endAmount !== startAmount
         ? SaleKind.DutchAuction
         : SaleKind.FixedPrice;
 
