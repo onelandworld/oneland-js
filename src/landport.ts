@@ -1635,6 +1635,11 @@ export class LandPort {
       throw new Error('Cannot schedule an English auction for the future.');
     }
     if (parseInt(expirationTimestamp.toString()) !== expirationTimestamp) {
+      debug(
+        `expirationTimestamp: ${expirationTimestamp}; expirationTimestamp.toString(): ${expirationTimestamp.toString()}; parseInt(expirationTimestamp.toString()): ${parseInt(
+          expirationTimestamp.toString()
+        )}`
+      );
       throw new Error('Expiration timestamp must be a whole number of seconds');
     }
     if (expirationTimestamp > maxExpirationTimeStamp) {

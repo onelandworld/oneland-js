@@ -239,6 +239,7 @@ describe('landport offers', () => {
   }, 600000 /*10 minutes timeout*/);
 
   test('Offers could not be matched with higher price', async () => {
+    mockMinExpirationMinutesGetter.mockReturnValue(1);
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
     const [landOwnerWETHBalance, landTakerWETHBalance] =
@@ -261,6 +262,9 @@ describe('landport offers', () => {
       accountAddress: landTaker.address,
       startAmount: price,
       paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      expirationTime: dayjs()
+        .add(mockMinExpirationMinutesGetter() + 1, 'minute')
+        .unix(),
     });
     const orderJson = orderToJSON(order);
     const buyOrder = orderFromJSON(orderJson);
@@ -333,6 +337,8 @@ describe('landport offers', () => {
   }, 600000 /*10 minutes timeout*/);
 
   test('Offer could only be fulfilled by NFT owner', async () => {
+    mockMinExpirationMinutesGetter.mockReturnValue(1);
+
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
     await withAliceAndBobHavingWETH(landOwner, landTaker);
@@ -354,6 +360,9 @@ describe('landport offers', () => {
       accountAddress: landTaker.address,
       startAmount: price,
       paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      expirationTime: dayjs()
+        .add(mockMinExpirationMinutesGetter() + 1, 'minute')
+        .unix(),
     });
     const orderJson = orderToJSON(order);
     const buyOrder = orderFromJSON(orderJson);

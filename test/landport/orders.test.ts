@@ -225,6 +225,8 @@ describe('landport orders', () => {
   }, 600000 /*10 minutes timeout*/);
 
   test('Order could not be matched with lower price', async () => {
+    mockMinExpirationMinutesGetter.mockReturnValue(1);
+
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
     const [landOwnerWETHBalance, landTakerWETHBalance] =
@@ -247,6 +249,9 @@ describe('landport orders', () => {
       accountAddress: landOwner.address,
       startAmount: price,
       paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      expirationTime: dayjs()
+        .add(mockMinExpirationMinutesGetter() + 1, 'minute')
+        .unix(),
     });
     const orderJson = orderToJSON(order);
     const buyOrder = orderFromJSON(orderJson);
@@ -269,6 +274,11 @@ describe('landport orders', () => {
         accountAddress: landTaker.address,
       })
     ).rejects.toThrow(/error/);
+
+    await landOwnerPort.cancelOrder({
+      order,
+      accountAddress: landOwner.address,
+    });
   }, 600000 /*10 minutes timeout*/);
 
   test('Expired Orders could not be matched', async () => {

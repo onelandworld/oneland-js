@@ -127,6 +127,9 @@ describe('order salekind', () => {
       accountAddress: landTaker.address,
       startAmount: price,
       paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      expirationTime: dayjs()
+        .add(MIN_EXPIRATION_MINUTES + 1, 'minute')
+        .unix(),
     });
 
     expect(order.saleKind).toEqual(SaleKind.FixedPrice);
