@@ -7,21 +7,17 @@ import {
   getWETHBalance,
 } from '../utils';
 import {
-  RINKEBY_WETH_ADDRESS,
-  RINKEBY_SANDBOX_LAND_ADDRESS,
-  RINKEBY_SANDBOX_LAND_TOKEN_ID,
+  WETH_ADDRESS,
+  ERC721_ADDRESS,
+  ERC721_TOKEN_ID,
   provider,
   sandboxLandAbi,
   Caro,
   Dave,
+  mockApiGetAsset,
 } from '../constants';
-import {
-  LandPort,
-  OneLandAPI,
-  Network,
-  WyvernSchemaName,
-  AssetContractType,
-} from '../../src';
+import { LandPort, WyvernSchemaName, AssetContractType } from '../../src';
+import { configs } from '../configs';
 
 const mockDefaultOnelandFeeBasisPointsGetter = jest.fn();
 const mockOnelandFeeRecipientGetter = jest.fn();
@@ -44,11 +40,6 @@ jest.mock('../../src/constants/fees', () => {
   };
 });
 
-const mockApiGetAsset = jest.fn();
-jest
-  .spyOn(OneLandAPI.prototype, 'getAsset')
-  .mockImplementation(mockApiGetAsset);
-
 const mockApiGetAssetResult = ({
   tokenAddress,
   tokenId,
@@ -68,7 +59,7 @@ const mockApiGetAssetResult = ({
     schemaName: WyvernSchemaName.ERC721,
     assetContract: {
       name: 'Sandbox Land',
-      address: RINKEBY_SANDBOX_LAND_ADDRESS,
+      address: ERC721_ADDRESS,
       type: AssetContractType.NonFungible,
       schemaName: WyvernSchemaName.ERC721,
     },
@@ -119,13 +110,13 @@ describe('landport order fees', () => {
 
     // Create Sell Order
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -133,13 +124,13 @@ describe('landport order fees', () => {
       asset,
       accountAddress: landOwner.address,
       startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
     });
 
     // Fulfill order
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -150,7 +141,7 @@ describe('landport order fees', () => {
 
     // Assert NFT is transferred
     const landOwnerAddress = await sandboxLandAbi.ownerOf(
-      EthBigNumber.from(RINKEBY_SANDBOX_LAND_TOKEN_ID)
+      EthBigNumber.from(ERC721_TOKEN_ID)
     );
     expect(landOwnerAddress).toEqual(landTaker.address);
 
@@ -222,13 +213,13 @@ describe('landport order fees', () => {
     );
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -236,12 +227,12 @@ describe('landport order fees', () => {
       asset,
       accountAddress: landOwner.address,
       startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
     });
 
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -252,7 +243,7 @@ describe('landport order fees', () => {
 
     // Assert NFT is transferred
     const landOwnerAddress = await sandboxLandAbi.ownerOf(
-      EthBigNumber.from(RINKEBY_SANDBOX_LAND_TOKEN_ID)
+      EthBigNumber.from(ERC721_TOKEN_ID)
     );
     expect(landOwnerAddress).toEqual(landTaker.address);
 

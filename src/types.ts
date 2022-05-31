@@ -4,6 +4,7 @@ import { BigNumberish, BytesLike } from 'ethers';
 export enum Network {
   Main = 'mainnet',
   Rinkeby = 'rinkeby',
+  Mumbai = 'mumbai',
 }
 
 /**

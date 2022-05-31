@@ -1,35 +1,40 @@
 import * as _ from 'lodash';
 import { withAliceOrBobOwningLand, withAliceAndBobHavingEther } from '../utils';
 import {
-  RINKEBY_WETH_ADDRESS,
-  RINKEBY_SANDBOX_LAND_ADDRESS,
-  RINKEBY_SANDBOX_LAND_TOKEN_ID,
+  WETH_ADDRESS,
+  ERC721_ADDRESS,
+  ERC721_TOKEN_ID,
   provider,
+  mockApiGetAsset,
 } from '../constants';
 import {
   LandPort,
-  Network,
   WyvernSchemaName,
   SaleKind,
   MIN_EXPIRATION_MINUTES,
 } from '../../src';
+import { configs } from '../configs';
 
 const dayjs = require('dayjs');
 
 describe('order salekind', () => {
+  beforeEach(() => {
+    mockApiGetAsset.mockClear();
+  });
+
   test('Sell orders with empty endAmount should be with SaleKind.FixedPrice', async () => {
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
     await withAliceAndBobHavingEther();
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -37,7 +42,7 @@ describe('order salekind', () => {
       asset,
       accountAddress: landOwner.address,
       startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
       expirationTime: dayjs()
         .add(MIN_EXPIRATION_MINUTES + 1, 'minute')
         .unix(),
@@ -51,14 +56,14 @@ describe('order salekind', () => {
     await withAliceAndBobHavingEther();
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -67,7 +72,7 @@ describe('order salekind', () => {
       accountAddress: landOwner.address,
       startAmount: price,
       endAmount: null,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
       expirationTime: dayjs()
         .add(MIN_EXPIRATION_MINUTES + 1, 'minute')
         .unix(),
@@ -81,14 +86,14 @@ describe('order salekind', () => {
     await withAliceAndBobHavingEther();
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -97,7 +102,7 @@ describe('order salekind', () => {
       accountAddress: landOwner.address,
       startAmount: price,
       endAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
       expirationTime: dayjs()
         .add(MIN_EXPIRATION_MINUTES + 1, 'minute')
         .unix(),
@@ -111,14 +116,14 @@ describe('order salekind', () => {
     await withAliceAndBobHavingEther();
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -126,7 +131,7 @@ describe('order salekind', () => {
       asset,
       accountAddress: landTaker.address,
       startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
       expirationTime: dayjs()
         .add(MIN_EXPIRATION_MINUTES + 1, 'minute')
         .unix(),

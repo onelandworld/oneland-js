@@ -657,10 +657,19 @@ export class LandPort {
       salt: order.salt.toFixed(),
     };
 
-    const domain = domainToSign(
-      order.exchange,
-      this._network === Network.Main ? 1 : 4
-    );
+    const networkId = (() => {
+      switch (this._network) {
+        case Network.Rinkeby:
+          return 4;
+        case Network.Mumbai:
+          return 80001;
+        case Network.Main:
+        default:
+          return 1;
+      }
+    })();
+
+    const domain = domainToSign(order.exchange, networkId);
     const types = {
       Order: eip712Order.fields,
     };

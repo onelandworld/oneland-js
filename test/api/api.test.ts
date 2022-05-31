@@ -1,7 +1,8 @@
-import { OneLandAPI, OneLandAPIConfig, Network } from '../../src';
+import { OneLandAPI, OneLandAPIConfig } from '../../src';
+import { configs } from '../configs';
 
 const apiConfig: OneLandAPIConfig = {
-  network: Network.Rinkeby,
+  network: configs.network,
 };
 
 const landApi = new OneLandAPI(apiConfig);

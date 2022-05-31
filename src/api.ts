@@ -25,6 +25,7 @@ export class OneLandAPI {
     } else {
       switch (config.network) {
         case Network.Rinkeby:
+        case Network.Mumbai:
           this.hostUrl = 'https://test-api.oneland.world';
           break;
         case Network.Main:
@@ -97,9 +98,10 @@ export class OneLandAPI {
     page = 1,
     retries = 1
   ): Promise<{ tokens: OneLandFungibleToken[] }> {
-    let tokens =
-      this._network === Network.Main
-        ? [
+    let tokens = (() => {
+      switch (this._network) {
+        case Network.Main:
+          return [
             {
               name: 'Wrapped Ether',
               symbol: 'WETH',
@@ -118,8 +120,19 @@ export class OneLandAPI {
               decimals: 6,
               address: '0xdac17f958d2ee523a2206206994597c13d831ec7',
             },
-          ]
-        : [
+          ];
+        case Network.Mumbai:
+          return [
+            {
+              name: 'Wrapped Ether',
+              symbol: 'WETH',
+              decimals: 18,
+              address: '0xa6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa',
+            },
+          ];
+        case Network.Rinkeby:
+        default:
+          return [
             {
               name: 'Wrapped Ether',
               symbol: 'WETH',
@@ -139,6 +152,9 @@ export class OneLandAPI {
               address: '0xd92e713d051c37ebb2561803a3b5fbabc4962431',
             },
           ];
+      }
+    })();
+
     if (query.address) {
       tokens = tokens.filter((item) => item.address === query.address);
     }

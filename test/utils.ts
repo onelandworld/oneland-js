@@ -3,7 +3,7 @@ import { ethers, BigNumber as EthBigNumber } from 'ethers';
 import {
   Alice,
   Bob,
-  RINKEBY_SANDBOX_LAND_TOKEN_ID,
+  ERC721_TOKEN_ID,
   provider,
   sandboxLandAbi,
   wethAbi,
@@ -19,7 +19,7 @@ export function sleep(ms: number) {
 // Expect Alice or Bob owns the land asset
 export const withAliceOrBobOwningLand = async () => {
   const landOwnerAddress = await sandboxLandAbi.ownerOf(
-    EthBigNumber.from(RINKEBY_SANDBOX_LAND_TOKEN_ID)
+    EthBigNumber.from(ERC721_TOKEN_ID)
   );
   expect([Alice.address, Bob.address]).toContain(landOwnerAddress);
   const landOwner: Account = landOwnerAddress === Alice.address ? Alice : Bob;
@@ -27,7 +27,7 @@ export const withAliceOrBobOwningLand = async () => {
   return [landOwner, landTaker];
 };
 
-// Asset Alice and Bob's Ether balance
+// Assert Alice and Bob's Ether balance
 const minimalEthBalance = 0.1;
 export const withAliceAndBobHavingEther = async () => {
   const balanceOfAliceBN = await provider.getBalance(Alice.address);

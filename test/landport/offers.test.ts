@@ -9,23 +9,24 @@ import {
   getWETHBalance,
 } from '../utils';
 import {
-  RINKEBY_WETH_ADDRESS,
-  RINKEBY_WETH_DECIMAL,
-  RINKEBY_SANDBOX_LAND_ADDRESS,
-  RINKEBY_SANDBOX_LAND_TOKEN_ID,
+  WETH_ADDRESS,
+  WETH_DECIMAL,
+  ERC721_ADDRESS,
+  ERC721_TOKEN_ID,
   provider,
   sandboxLandAbi,
   Caro,
+  mockApiGetAsset,
 } from '../constants';
 import {
   LandPort,
-  Network,
   WyvernSchemaName,
   toBaseUnitAmount,
   orderToJSON,
   orderFromJSON,
   NULL_ADDRESS,
 } from '../../src';
+import { configs } from '../configs';
 
 const dayjs = require('dayjs');
 
@@ -50,20 +51,21 @@ jest.mock('../../src/constants/orders', () => {
 describe('landport offers', () => {
   beforeEach(() => {
     mockMinExpirationMinutesGetter.mockClear();
+    mockApiGetAsset.mockClear();
   });
 
   // Note: Use test.only(...) to run specific test only
-  test('Making offer with Ether does not work', async () => {
+  test('Making offer with Ether/Matic does not work', async () => {
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -84,14 +86,14 @@ describe('landport offers', () => {
       await withAliceAndBobHavingWETH(landOwner, landTaker);
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -99,14 +101,14 @@ describe('landport offers', () => {
       asset,
       accountAddress: landTaker.address,
       startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
     });
     const orderJson = orderToJSON(order);
     const buyOrder = orderFromJSON(orderJson);
 
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -117,28 +119,32 @@ describe('landport offers', () => {
 
     // Assert NFT is transferred
     const landOwnerAddress = await sandboxLandAbi.ownerOf(
-      EthBigNumber.from(RINKEBY_SANDBOX_LAND_TOKEN_ID)
+      EthBigNumber.from(ERC721_TOKEN_ID)
     );
     expect(landOwnerAddress).toEqual(landTaker.address);
 
     // Asset WETH is transferred
     const updatedLandOwnerWETHBalance = await getWETHBalance(landOwner.address);
-    expect(updatedLandOwnerWETHBalance).toEqual(landOwnerWETHBalance + price);
+    expect(updatedLandOwnerWETHBalance).toBeCloseTo(
+      landOwnerWETHBalance + price
+    );
     const updatedLandTakerWETHBalance = await getWETHBalance(landTaker.address);
-    expect(updatedLandTakerWETHBalance).toEqual(landTakerWETHBalance - price);
+    expect(updatedLandTakerWETHBalance).toBeCloseTo(
+      landTakerWETHBalance - price
+    );
   }, 600000 /*10 minutes timeout*/);
 
   test('Could not offer with 0 ERC20 price', async () => {
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -147,7 +153,7 @@ describe('landport offers', () => {
         asset,
         accountAddress: landTaker.address,
         startAmount: 0,
-        paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+        paymentTokenAddress: WETH_ADDRESS,
       })
     ).rejects.toThrow('Starting price must be a number > 0');
   }, 600000 /*10 minutes timeout*/);
@@ -156,13 +162,13 @@ describe('landport offers', () => {
     const [landOwner, landTaker] = await withAliceOrBobOwningLand();
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -170,7 +176,7 @@ describe('landport offers', () => {
       asset,
       accountAddress: landOwner.address,
       startAmount: 0.01,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
     });
 
     const orderJson = orderToJSON(order);
@@ -178,7 +184,7 @@ describe('landport offers', () => {
 
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -196,14 +202,14 @@ describe('landport offers', () => {
     await withAliceAndBobHavingWETH(landOwner, landTaker);
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -211,7 +217,7 @@ describe('landport offers', () => {
       asset,
       accountAddress: landOwner.address,
       startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
     });
 
     await landTakerPort.cancelOrder({
@@ -224,7 +230,7 @@ describe('landport offers', () => {
 
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -246,14 +252,14 @@ describe('landport offers', () => {
       await withAliceAndBobHavingWETH(landOwner, landTaker);
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -261,7 +267,7 @@ describe('landport offers', () => {
       asset,
       accountAddress: landTaker.address,
       startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
       expirationTime: dayjs()
         .add(mockMinExpirationMinutesGetter() + 1, 'minute')
         .unix(),
@@ -270,14 +276,11 @@ describe('landport offers', () => {
     const buyOrder = orderFromJSON(orderJson);
 
     // Try to higher the price
-    buyOrder.basePrice = toBaseUnitAmount(
-      new BigNumber(0.02),
-      RINKEBY_WETH_DECIMAL
-    );
+    buyOrder.basePrice = toBaseUnitAmount(new BigNumber(0.02), WETH_DECIMAL);
 
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -297,14 +300,14 @@ describe('landport offers', () => {
     await withAliceAndBobHavingWETH(landOwner, landTaker);
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -312,7 +315,7 @@ describe('landport offers', () => {
       asset,
       accountAddress: landOwner.address,
       startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
       // order expires 1 minute later
       expirationTime: dayjs().add(1, 'minute').unix(),
     });
@@ -324,7 +327,7 @@ describe('landport offers', () => {
     await sleep(60 * 1000);
     const landOwnerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landOwner.signer,
       (msg: any) => console.log(msg)
     );
@@ -344,14 +347,14 @@ describe('landport offers', () => {
     await withAliceAndBobHavingWETH(landOwner, landTaker);
 
     const asset = {
-      tokenAddress: RINKEBY_SANDBOX_LAND_ADDRESS,
-      tokenId: RINKEBY_SANDBOX_LAND_TOKEN_ID + '',
+      tokenAddress: ERC721_ADDRESS,
+      tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
     const landTakerPort = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       landTaker.signer,
       (msg: any) => console.log(msg)
     );
@@ -359,7 +362,7 @@ describe('landport offers', () => {
       asset,
       accountAddress: landTaker.address,
       startAmount: price,
-      paymentTokenAddress: RINKEBY_WETH_ADDRESS,
+      paymentTokenAddress: WETH_ADDRESS,
       expirationTime: dayjs()
         .add(mockMinExpirationMinutesGetter() + 1, 'minute')
         .unix(),
@@ -370,7 +373,7 @@ describe('landport offers', () => {
     // Caro wants to fulfill this buy order
     const landPortOfCaro = new LandPort(
       provider,
-      { network: Network.Rinkeby },
+      { network: configs.network },
       Caro.signer,
       (msg: any) => console.log(msg)
     );
