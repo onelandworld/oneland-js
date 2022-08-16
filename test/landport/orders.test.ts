@@ -3,18 +3,18 @@ import { BigNumber as EthBigNumber } from 'ethers';
 import { BigNumber } from 'bignumber.js';
 import {
   sleep,
-  withAliceOrBobOwningLand,
+  withAliceOrBobOwningNFT,
   withAliceAndBobHavingEther,
-  withAliceAndBobHavingWETH,
-  getWETHBalance,
+  withAliceAndBobHavingERC20,
+  getERC20Balance,
 } from '../utils';
 import {
-  WETH_ADDRESS,
-  WETH_DECIMAL,
+  ERC20_TOKEN_ADDRESS,
+  ERC20_TOKEN_DECIMAL,
   ERC721_ADDRESS,
   ERC721_TOKEN_ID,
   provider,
-  sandboxLandAbi,
+  erc721Abi,
   Caro,
   mockApiGetAsset,
 } from '../constants';
@@ -54,8 +54,8 @@ describe('landport orders', () => {
   });
 
   // Note: Use test.only(...) to run specific test only
-  test('Swapping NFT with Ether/Matic does not work', async () => {
-    const [landOwner] = await withAliceOrBobOwningLand();
+  test('Swapping NFT with native Ether/Matic/BNB does not work', async () => {
+    const [nftOwner] = await withAliceOrBobOwningNFT();
 
     // Create Sell Order
     const asset = {
@@ -63,26 +63,26 @@ describe('landport orders', () => {
       tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
     await expect(
-      landOwnerPort.createSellOrder({
+      nftOwnerPort.createSellOrder({
         asset,
-        accountAddress: landOwner.address,
+        accountAddress: nftOwner.address,
         startAmount: 0.01,
       })
-    ).rejects.toThrow('Trading with ETH is not supported');
+    ).rejects.toThrow('Trading with native ether is not supported');
   }, 600000 /*10 minutes timeout*/);
 
-  test('Swapping NFT with WETH works', async () => {
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+  test('Swapping NFT with ERC20 works', async () => {
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
-    const [landOwnerWETHBalance, landTakerWETHBalance] =
-      await withAliceAndBobHavingWETH(landOwner, landTaker);
+    const [nftOwnerERC20Balance, nftTakerERC20Balance] =
+      await withAliceAndBobHavingERC20(nftOwner, nftTaker);
 
     // Create Sell Order
     const asset = {
@@ -91,52 +91,52 @@ describe('landport orders', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
     });
     const orderJson = orderToJSON(order);
     const buyOrder = orderFromJSON(orderJson);
 
     // Fulfill order
-    const landTakerPort = new LandPort(
+    const nftTakerPort = new LandPort(
       provider,
       { network: configs.network },
-      landTaker.signer,
+      nftTaker.signer,
       (msg: any) => console.log(msg)
     );
-    await landTakerPort.fulfillOrder({
+    await nftTakerPort.fulfillOrder({
       order: buyOrder,
-      accountAddress: landTaker.address,
+      accountAddress: nftTaker.address,
     });
 
     // Assert NFT is transferred
-    const landOwnerAddress = await sandboxLandAbi.ownerOf(
+    const nftOwnerAddress = await erc721Abi.ownerOf(
       EthBigNumber.from(ERC721_TOKEN_ID)
     );
-    expect(landOwnerAddress).toEqual(landTaker.address);
+    expect(nftOwnerAddress).toEqual(nftTaker.address);
 
-    // Asset WETH is transferred
-    const updatedLandOwnerWETHBalance = await getWETHBalance(landOwner.address);
-    expect(updatedLandOwnerWETHBalance).toBeCloseTo(
-      landOwnerWETHBalance + price
+    // Asset ERC20 is transferred
+    const updatedNFTOwnerERC20Balance = await getERC20Balance(nftOwner.address);
+    expect(updatedNFTOwnerERC20Balance).toBeCloseTo(
+      nftOwnerERC20Balance + price
     );
-    const updatedLandTakerWETHBalance = await getWETHBalance(landTaker.address);
-    expect(updatedLandTakerWETHBalance).toBeCloseTo(
-      landTakerWETHBalance - price
+    const updatedNFTTakerERC20Balance = await getERC20Balance(nftTaker.address);
+    expect(updatedNFTTakerERC20Balance).toBeCloseTo(
+      nftTakerERC20Balance - price
     );
   }, 600000 /*10 minutes timeout*/);
 
   test('Could not sell NFT with 0 ERC20 price', async () => {
-    const [landOwner] = await withAliceOrBobOwningLand();
+    const [nftOwner] = await withAliceOrBobOwningNFT();
 
     // Create Sell Order
     const asset = {
@@ -144,50 +144,50 @@ describe('landport orders', () => {
       tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
     await expect(
-      landOwnerPort.createSellOrder({
+      nftOwnerPort.createSellOrder({
         asset,
-        accountAddress: landOwner.address,
+        accountAddress: nftOwner.address,
         startAmount: 0,
-        paymentTokenAddress: WETH_ADDRESS,
+        paymentTokenAddress: ERC20_TOKEN_ADDRESS,
       })
     ).rejects.toThrow('Starting price must be a number > 0');
   }, 600000 /*10 minutes timeout*/);
 
   test('Could not sell not-owned NFT', async () => {
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
 
     const asset = {
       tokenAddress: ERC721_ADDRESS,
       tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
-    const landTakerPort = new LandPort(
+    const nftTakerPort = new LandPort(
       provider,
       { network: configs.network },
-      landTaker.signer,
+      nftTaker.signer,
       (msg: any) => console.log(msg)
     );
     await expect(
-      landTakerPort.createSellOrder({
+      nftTakerPort.createSellOrder({
         asset,
-        accountAddress: landTaker.address,
+        accountAddress: nftTaker.address,
         startAmount: 0.01,
-        paymentTokenAddress: WETH_ADDRESS,
+        paymentTokenAddress: ERC20_TOKEN_ADDRESS,
       })
     ).rejects.toThrow(/You don't own enough to do that/);
   }, 600000 /*10 minutes timeout*/);
 
   test('Cancelled Orders could not be matched', async () => {
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
-    await withAliceAndBobHavingWETH(landOwner, landTaker);
+    await withAliceAndBobHavingERC20(nftOwner, nftTaker);
 
     const asset = {
       tokenAddress: ERC721_ADDRESS,
@@ -195,37 +195,37 @@ describe('landport orders', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
     });
 
-    await landOwnerPort.cancelOrder({
+    await nftOwnerPort.cancelOrder({
       order,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
     });
 
     const orderJson = orderToJSON(order);
     const buyOrder = orderFromJSON(orderJson);
 
-    const landTakerPort = new LandPort(
+    const nftTakerPort = new LandPort(
       provider,
       { network: configs.network },
-      landTaker.signer,
+      nftTaker.signer,
       (msg: any) => console.log(msg)
     );
     await expect(
-      landTakerPort.fulfillOrder({
+      nftTakerPort.fulfillOrder({
         order: buyOrder,
-        accountAddress: landTaker.address,
+        accountAddress: nftTaker.address,
       })
     ).rejects.toThrow(/execution reverted: First order has invalid parameters/);
   }, 600000 /*10 minutes timeout*/);
@@ -233,10 +233,10 @@ describe('landport orders', () => {
   test('Order could not be matched with lower price', async () => {
     mockMinExpirationMinutesGetter.mockReturnValue(1);
 
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
-    const [landOwnerWETHBalance, landTakerWETHBalance] =
-      await withAliceAndBobHavingWETH(landOwner, landTaker);
+    const [nftOwnerERC20Balance, nftTakerERC20Balance] =
+      await withAliceAndBobHavingERC20(nftOwner, nftTaker);
 
     const asset = {
       tokenAddress: ERC721_ADDRESS,
@@ -244,17 +244,17 @@ describe('landport orders', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
       expirationTime: dayjs()
         .add(mockMinExpirationMinutesGetter() + 1, 'minute')
         .unix(),
@@ -263,33 +263,33 @@ describe('landport orders', () => {
     const buyOrder = orderFromJSON(orderJson);
 
     // Try to lower the price
-    buyOrder.basePrice = toBaseUnitAmount(new BigNumber(0.005), WETH_DECIMAL);
+    buyOrder.basePrice = toBaseUnitAmount(new BigNumber(0.005), ERC20_TOKEN_DECIMAL);
 
-    const landTakerPort = new LandPort(
+    const nftTakerPort = new LandPort(
       provider,
       { network: configs.network },
-      landTaker.signer,
+      nftTaker.signer,
       (msg: any) => console.log(msg)
     );
     await expect(
-      landTakerPort.fulfillOrder({
+      nftTakerPort.fulfillOrder({
         order: buyOrder,
-        accountAddress: landTaker.address,
+        accountAddress: nftTaker.address,
       })
     ).rejects.toThrow(/error/);
 
-    await landOwnerPort.cancelOrder({
+    await nftOwnerPort.cancelOrder({
       order,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
     });
   }, 600000 /*10 minutes timeout*/);
 
   test('Expired Orders could not be matched', async () => {
     mockMinExpirationMinutesGetter.mockReturnValue(1);
 
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
-    await withAliceAndBobHavingWETH(landOwner, landTaker);
+    await withAliceAndBobHavingERC20(nftOwner, nftTaker);
 
     const asset = {
       tokenAddress: ERC721_ADDRESS,
@@ -297,17 +297,17 @@ describe('landport orders', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
       // order expires 1 minute later
       expirationTime: dayjs().add(1, 'minute').unix(),
     });
@@ -317,24 +317,24 @@ describe('landport orders', () => {
 
     // sleep 1 minute to wait for the order to expire
     await sleep(60 * 1000);
-    const landTakerPort = new LandPort(
+    const nftTakerPort = new LandPort(
       provider,
       { network: configs.network },
-      landTaker.signer,
+      nftTaker.signer,
       (msg: any) => console.log(msg)
     );
     await expect(
-      landTakerPort.fulfillOrder({
+      nftTakerPort.fulfillOrder({
         order: buyOrder,
-        accountAddress: landTaker.address,
+        accountAddress: nftTaker.address,
       })
     ).rejects.toThrow(/execution reverted: First order has invalid parameters/);
   }, 600000 /*10 minutes timeout*/);
 
   test('Order could not be matched twice', async () => {
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
-    await withAliceAndBobHavingWETH(landOwner, landTaker);
+    await withAliceAndBobHavingERC20(nftOwner, nftTaker);
 
     const asset = {
       tokenAddress: ERC721_ADDRESS,
@@ -342,37 +342,37 @@ describe('landport orders', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
     });
     const orderJson = orderToJSON(order);
     const buyOrder = orderFromJSON(orderJson);
 
-    const landTakerPort = new LandPort(
+    const nftTakerPort = new LandPort(
       provider,
       { network: configs.network },
-      landTaker.signer,
+      nftTaker.signer,
       (msg: any) => console.log(msg)
     );
-    await landTakerPort.fulfillOrder({
+    await nftTakerPort.fulfillOrder({
       order: buyOrder,
-      accountAddress: landTaker.address,
+      accountAddress: nftTaker.address,
     });
 
     // Assert NFT is transferred
-    const landOwnerAddress = await sandboxLandAbi.ownerOf(
+    const nftOwnerAddress = await erc721Abi.ownerOf(
       EthBigNumber.from(ERC721_TOKEN_ID)
     );
-    expect(landOwnerAddress).toEqual(landTaker.address);
+    expect(nftOwnerAddress).toEqual(nftTaker.address);
 
     // Now Caro wants to fulfill this order again
     const landPortOfCaro = new LandPort(

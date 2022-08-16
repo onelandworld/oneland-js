@@ -5,8 +5,8 @@ import {
   Bob,
   ERC721_TOKEN_ID,
   provider,
-  sandboxLandAbi,
-  wethAbi,
+  erc721Abi,
+  erc20Abi,
 } from './constants';
 import { Account } from './types';
 
@@ -16,15 +16,15 @@ export function sleep(ms: number) {
   });
 }
 
-// Expect Alice or Bob owns the land asset
-export const withAliceOrBobOwningLand = async () => {
-  const landOwnerAddress = await sandboxLandAbi.ownerOf(
+// Expect Alice or Bob owns the nft asset
+export const withAliceOrBobOwningNFT = async () => {
+  const nftOwnerAddress = await erc721Abi.ownerOf(
     EthBigNumber.from(ERC721_TOKEN_ID)
   );
-  expect([Alice.address, Bob.address]).toContain(landOwnerAddress);
-  const landOwner: Account = landOwnerAddress === Alice.address ? Alice : Bob;
-  const landTaker: Account = landOwner === Alice ? Bob : Alice;
-  return [landOwner, landTaker];
+  expect([Alice.address, Bob.address]).toContain(nftOwnerAddress);
+  const nftOwner: Account = nftOwnerAddress === Alice.address ? Alice : Bob;
+  const nftTaker: Account = nftOwner === Alice ? Bob : Alice;
+  return [nftOwner, nftTaker];
 };
 
 // Assert Alice and Bob's Ether balance
@@ -39,23 +39,23 @@ export const withAliceAndBobHavingEther = async () => {
   expect(balanceOfBob).toBeGreaterThanOrEqual(minimalEthBalance);
 };
 
-export const getWETHBalance = async (address: string) => {
-  const wethDecimal = await wethAbi.decimals();
-  const balanceBN = await wethAbi.balanceOf(address);
-  return _.toNumber(ethers.utils.formatUnits(balanceBN, wethDecimal));
+export const getERC20Balance = async (address: string) => {
+  const erc20Decimal = await erc20Abi.decimals();
+  const balanceBN = await erc20Abi.balanceOf(address);
+  return _.toNumber(ethers.utils.formatUnits(balanceBN, erc20Decimal));
 };
 
-// Assert Alice and Bob's WETH balance
-const minimalWETHBalance = 0.1;
-export const withAliceAndBobHavingWETH = async (
-  landOwner: Account,
-  landTaker: Account
+// Assert Alice and Bob's ERC20 balance
+const minimalERC20Balance = 0.1;
+export const withAliceAndBobHavingERC20 = async (
+  nftOwner: Account,
+  nftTaker: Account
 ) => {
-  const landOwnerWETHBalance = await getWETHBalance(landOwner.address);
-  expect(landOwnerWETHBalance).toBeGreaterThanOrEqual(minimalWETHBalance);
+  const nftOwnerERC20Balance = await getERC20Balance(nftOwner.address);
+  expect(nftOwnerERC20Balance).toBeGreaterThanOrEqual(minimalERC20Balance);
 
-  const landTakerWETHBalance = await getWETHBalance(landTaker.address);
-  expect(landTakerWETHBalance).toBeGreaterThanOrEqual(minimalWETHBalance);
+  const nftTakerERC20Balance = await getERC20Balance(nftTaker.address);
+  expect(nftTakerERC20Balance).toBeGreaterThanOrEqual(minimalERC20Balance);
 
-  return [landOwnerWETHBalance, landTakerWETHBalance];
+  return [nftOwnerERC20Balance, nftTakerERC20Balance];
 };

@@ -32,4 +32,15 @@ export const deployed = {
     },
     WETH: '0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa',
   },
+  bsctestnet: {
+    wyvern: {
+      Migrations: '0xfb1CA1f7b9e16198830FE2c83D73184f57D59cce',
+      WyvernAtomicizer: '0x3763F59D691200d2efC9B895B4f26Cd3Ec394CFD',
+      WyvernStatic: '0x73cd868bAc82b57f1a1477B5932c20914C170F89',
+      WyvernRegistry: '0xF9B9596510d02E5cF543BA8943aD77b452379652',
+      WyvernExchange: '0x66f17F6A34A8521F6AF4C9C6B0dBE2d116d75445',
+      StaticMarket: '0x3f0A65b5B7E951a49AE2f211629B401F73f88169',
+    },
+    WETH: '0xd66c6B4F0be8CE5b39D52E0Fd1344c389929B378',
+  }
 };

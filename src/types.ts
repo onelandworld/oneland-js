@@ -5,6 +5,7 @@ export enum Network {
   Main = 'mainnet',
   Rinkeby = 'rinkeby',
   Mumbai = 'mumbai',
+  BscTestnet = 'bsctestnet'
 }
 
 /**

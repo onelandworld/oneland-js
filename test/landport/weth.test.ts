@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 import { ethers } from 'ethers';
 import { Alice, provider } from '../constants';
-import { getWETHBalance } from '../utils';
+import { getERC20Balance } from '../utils';
 import { LandPort, Network } from '../../src';
 import { configs } from '../configs';
 
@@ -15,13 +15,19 @@ describe('weth', () => {
       return;
     }
 
+    // No WETH on BSC Testnet
+    if (configs.network === Network.BscTestnet) {
+      expect(1 + 1).toEqual(2);
+      return;
+    }
+
     const initEthBalanceBN = await provider.getBalance(Alice.address);
     const initEthBalance = _.toNumber(
       ethers.utils.formatEther(initEthBalanceBN)
     );
     expect(initEthBalance).toBeGreaterThanOrEqual(minimalEthBalance);
 
-    const initWethBalance = await getWETHBalance(Alice.address);
+    const initWethBalance = await getERC20Balance(Alice.address);
 
     const amount = 0.01;
     const landPort = new LandPort(
@@ -39,7 +45,7 @@ describe('weth', () => {
     const ethBalanceAfterWrap = _.toNumber(
       ethers.utils.formatEther(ethBalanceAfterWrapBN)
     );
-    const wethBalanceAfterWrap = await getWETHBalance(Alice.address);
+    const wethBalanceAfterWrap = await getERC20Balance(Alice.address);
 
     expect(wethBalanceAfterWrap).toBeCloseTo(initWethBalance + amount, 3);
     // considering GAS
@@ -53,7 +59,7 @@ describe('weth', () => {
     const ethBalanceAfterUnwrap = _.toNumber(
       ethers.utils.formatEther(ethBalanceAfterUnwrapBN)
     );
-    const wethBalanceAfterUnwrap = await getWETHBalance(Alice.address);
+    const wethBalanceAfterUnwrap = await getERC20Balance(Alice.address);
 
     expect(wethBalanceAfterUnwrap).toBeCloseTo(
       wethBalanceAfterWrap - amount,

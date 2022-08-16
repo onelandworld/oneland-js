@@ -1,17 +1,17 @@
 import * as _ from 'lodash';
 import { BigNumber as EthBigNumber } from 'ethers';
 import {
-  withAliceOrBobOwningLand,
+  withAliceOrBobOwningNFT,
   withAliceAndBobHavingEther,
-  withAliceAndBobHavingWETH,
-  getWETHBalance,
+  withAliceAndBobHavingERC20,
+  getERC20Balance,
 } from '../utils';
 import {
-  WETH_ADDRESS,
+  ERC20_TOKEN_ADDRESS,
   ERC721_ADDRESS,
   ERC721_TOKEN_ID,
   provider,
-  sandboxLandAbi,
+  erc721Abi,
   Caro,
   Dave,
   mockApiGetAsset,
@@ -58,14 +58,14 @@ const mockApiGetAssetResult = ({
     tokenId: tokenId || '',
     schemaName: WyvernSchemaName.ERC721,
     assetContract: {
-      name: 'Sandbox Land',
+      name: 'ERC721 Test',
       address: ERC721_ADDRESS,
       type: AssetContractType.NonFungible,
       schemaName: WyvernSchemaName.ERC721,
     },
     collection: {
-      name: 'Sandbox Land',
-      slug: 'sandbox',
+      name: 'ERC721 Test',
+      slug: 'erc721test',
       description: '',
       createdDate: new Date(),
       onelandFeeBasisPoints,
@@ -100,11 +100,11 @@ describe('landport order fees', () => {
       (price * mockDefaultOnelandFeeBasisPointsGetter()) / 10000;
     const amount = price - onelandFee;
 
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
-    const [landOwnerWETHBalance, landTakerWETHBalance] =
-      await withAliceAndBobHavingWETH(landOwner, landTaker);
-    const onelandFeeRecipientWETHBalance = await getWETHBalance(
+    const [nftOwnerERC20Balance, nftTakerERC20Balance] =
+      await withAliceAndBobHavingERC20(nftOwner, nftTaker);
+    const onelandFeeRecipientWETHBalance = await getERC20Balance(
       mockOnelandFeeRecipientGetter()
     );
 
@@ -114,53 +114,53 @@ describe('landport order fees', () => {
       tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
     });
 
     // Fulfill order
-    const landTakerPort = new LandPort(
+    const nftTakerPort = new LandPort(
       provider,
       { network: configs.network },
-      landTaker.signer,
+      nftTaker.signer,
       (msg: any) => console.log(msg)
     );
-    await landTakerPort.fulfillOrder({
+    await nftTakerPort.fulfillOrder({
       order,
-      accountAddress: landTaker.address,
+      accountAddress: nftTaker.address,
     });
 
     // Assert NFT is transferred
-    const landOwnerAddress = await sandboxLandAbi.ownerOf(
+    const nftOwnerAddress = await erc721Abi.ownerOf(
       EthBigNumber.from(ERC721_TOKEN_ID)
     );
-    expect(landOwnerAddress).toEqual(landTaker.address);
+    expect(nftOwnerAddress).toEqual(nftTaker.address);
 
     // Asset WETH is transferred
-    const updatedLandOwnerWETHBalance = await getWETHBalance(landOwner.address);
-    expect(updatedLandOwnerWETHBalance).toBeCloseTo(
-      landOwnerWETHBalance + amount,
+    const updatedNFTOwnerERC20Balance = await getERC20Balance(nftOwner.address);
+    expect(updatedNFTOwnerERC20Balance).toBeCloseTo(
+      nftOwnerERC20Balance + amount,
       3
     );
-    const updatedOnelandFeeRecipientWETHBalance = await getWETHBalance(
+    const updatedOnelandFeeRecipientWETHBalance = await getERC20Balance(
       mockOnelandFeeRecipientGetter()
     );
     expect(updatedOnelandFeeRecipientWETHBalance).toBeCloseTo(
       onelandFeeRecipientWETHBalance + onelandFee,
       3
     );
-    const updatedLandTakerWETHBalance = await getWETHBalance(landTaker.address);
-    expect(updatedLandTakerWETHBalance).toBeCloseTo(
-      landTakerWETHBalance - amount - onelandFee,
+    const updatedNFTTakerERC20Balance = await getERC20Balance(nftTaker.address);
+    expect(updatedNFTTakerERC20Balance).toBeCloseTo(
+      nftTakerERC20Balance - amount - onelandFee,
       3
     );
   }, 600000 /*10 minutes timeout*/);
@@ -201,14 +201,14 @@ describe('landport order fees', () => {
     const devFee = (price * mockDevFeeBasisPoints) / 10000;
     const amount = price - onelandFee - devFee;
 
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
-    const [landOwnerWETHBalance, landTakerWETHBalance] =
-      await withAliceAndBobHavingWETH(landOwner, landTaker);
-    const onelandFeeRecipientWETHBalance = await getWETHBalance(
+    const [nftOwnerERC20Balance, nftTakerERC20Balance] =
+      await withAliceAndBobHavingERC20(nftOwner, nftTaker);
+    const onelandFeeRecipientWETHBalance = await getERC20Balance(
       mockOnelandFeeRecipientGetter()
     );
-    const devFeeRecipientWETHBalance = await getWETHBalance(
+    const devFeeRecipientWETHBalance = await getERC20Balance(
       mockDevFeeRecipient
     );
 
@@ -217,59 +217,59 @@ describe('landport order fees', () => {
       tokenId: ERC721_TOKEN_ID + '',
       schemaName: WyvernSchemaName.ERC721,
     };
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
     });
 
-    const landTakerPort = new LandPort(
+    const nftTakerPort = new LandPort(
       provider,
       { network: configs.network },
-      landTaker.signer,
+      nftTaker.signer,
       (msg: any) => console.log(msg)
     );
-    await landTakerPort.fulfillOrder({
+    await nftTakerPort.fulfillOrder({
       order,
-      accountAddress: landTaker.address,
+      accountAddress: nftTaker.address,
     });
 
     // Assert NFT is transferred
-    const landOwnerAddress = await sandboxLandAbi.ownerOf(
+    const nftOwnerAddress = await erc721Abi.ownerOf(
       EthBigNumber.from(ERC721_TOKEN_ID)
     );
-    expect(landOwnerAddress).toEqual(landTaker.address);
+    expect(nftOwnerAddress).toEqual(nftTaker.address);
 
     // Asset WETH is transferred
-    const updatedLandOwnerWETHBalance = await getWETHBalance(landOwner.address);
-    expect(updatedLandOwnerWETHBalance).toBeCloseTo(
-      landOwnerWETHBalance + amount,
+    const updatedNFTOwnerERC20Balance = await getERC20Balance(nftOwner.address);
+    expect(updatedNFTOwnerERC20Balance).toBeCloseTo(
+      nftOwnerERC20Balance + amount,
       3
     );
-    const updatedOnelandFeeRecipientWETHBalance = await getWETHBalance(
+    const updatedOnelandFeeRecipientWETHBalance = await getERC20Balance(
       mockOnelandFeeRecipientGetter()
     );
     expect(updatedOnelandFeeRecipientWETHBalance).toBeCloseTo(
       onelandFeeRecipientWETHBalance + onelandFee,
       3
     );
-    const updatedDevFeeRecipientWETHBalance = await getWETHBalance(
+    const updatedDevFeeRecipientWETHBalance = await getERC20Balance(
       mockDevFeeRecipient
     );
     expect(updatedDevFeeRecipientWETHBalance).toBeCloseTo(
       devFeeRecipientWETHBalance + devFee,
       3
     );
-    const updatedLandTakerWETHBalance = await getWETHBalance(landTaker.address);
-    expect(updatedLandTakerWETHBalance).toBeCloseTo(
-      landTakerWETHBalance - amount - onelandFee - devFee,
+    const updatedNFTTakerERC20Balance = await getERC20Balance(nftTaker.address);
+    expect(updatedNFTTakerERC20Balance).toBeCloseTo(
+      nftTakerERC20Balance - amount - onelandFee - devFee,
       3
     );
   }, 600000 /*10 minutes timeout*/);

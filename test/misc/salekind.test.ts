@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
-import { withAliceOrBobOwningLand, withAliceAndBobHavingEther } from '../utils';
+import { withAliceOrBobOwningNFT, withAliceAndBobHavingEther } from '../utils';
 import {
-  WETH_ADDRESS,
+  ERC20_TOKEN_ADDRESS,
   ERC721_ADDRESS,
   ERC721_TOKEN_ID,
   provider,
@@ -23,7 +23,7 @@ describe('order salekind', () => {
   });
 
   test('Sell orders with empty endAmount should be with SaleKind.FixedPrice', async () => {
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
 
     const asset = {
@@ -32,17 +32,17 @@ describe('order salekind', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
       expirationTime: dayjs()
         .add(MIN_EXPIRATION_MINUTES + 1, 'minute')
         .unix(),
@@ -52,7 +52,7 @@ describe('order salekind', () => {
   }, 600000 /*10 minutes timeout*/);
 
   test('Sell orders with null endAmount should be with SaleKind.FixedPrice', async () => {
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
 
     const asset = {
@@ -61,18 +61,18 @@ describe('order salekind', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
       endAmount: null,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
       expirationTime: dayjs()
         .add(MIN_EXPIRATION_MINUTES + 1, 'minute')
         .unix(),
@@ -82,7 +82,7 @@ describe('order salekind', () => {
   }, 600000 /*10 minutes timeout*/);
 
   test('Sell orders with same startAmount and endAmount should be with SaleKind.FixedPrice', async () => {
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
 
     const asset = {
@@ -91,18 +91,18 @@ describe('order salekind', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landOwnerPort = new LandPort(
+    const nftOwnerPort = new LandPort(
       provider,
       { network: configs.network },
-      landOwner.signer,
+      nftOwner.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landOwnerPort.createSellOrder({
+    const order = await nftOwnerPort.createSellOrder({
       asset,
-      accountAddress: landOwner.address,
+      accountAddress: nftOwner.address,
       startAmount: price,
       endAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
       expirationTime: dayjs()
         .add(MIN_EXPIRATION_MINUTES + 1, 'minute')
         .unix(),
@@ -112,7 +112,7 @@ describe('order salekind', () => {
   }, 600000 /*10 minutes timeout*/);
 
   test('Offer orders should always be with SaleKind.FixedPrice', async () => {
-    const [landOwner, landTaker] = await withAliceOrBobOwningLand();
+    const [nftOwner, nftTaker] = await withAliceOrBobOwningNFT();
     await withAliceAndBobHavingEther();
 
     const asset = {
@@ -121,17 +121,17 @@ describe('order salekind', () => {
       schemaName: WyvernSchemaName.ERC721,
     };
     const price = 0.01;
-    const landTakerPort = new LandPort(
+    const nftTakerPort = new LandPort(
       provider,
       { network: configs.network },
-      landTaker.signer,
+      nftTaker.signer,
       (msg: any) => console.log(msg)
     );
-    const order = await landTakerPort.createBuyOrder({
+    const order = await nftTakerPort.createBuyOrder({
       asset,
-      accountAddress: landTaker.address,
+      accountAddress: nftTaker.address,
       startAmount: price,
-      paymentTokenAddress: WETH_ADDRESS,
+      paymentTokenAddress: ERC20_TOKEN_ADDRESS,
       expirationTime: dayjs()
         .add(MIN_EXPIRATION_MINUTES + 1, 'minute')
         .unix(),

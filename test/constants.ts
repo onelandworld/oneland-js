@@ -4,10 +4,21 @@ import { Account, Network } from './types';
 import { ERC20Abi__factory, ERC721Abi__factory } from '../src/typechain';
 import { configs } from './configs';
 
+export const WETH_ADDRESS = (() => {
+  switch (configs.network) {
+    case Network.Rinkeby:
+    default:
+      return '0xc778417E063141139Fce010982780140Aa0cD5Ab';
+  }
+})();
+export const WETH_DECIMAL = 18;
+
 export const ERC721_ADDRESS = (() => {
   switch (configs.network) {
     case Network.Mumbai:
       return '0xbf0708f39b945894eaD70debeE3AeeA352d10ce2';
+    case Network.BscTestnet:
+      return '0x6De8c6387c064D09F177Fc2BE6A12E3d7887afc9';
     case Network.Rinkeby:
     default:
       return '0x815f7BC6cF9826C676E16d7797de17d2dab0B693';
@@ -18,23 +29,27 @@ export const ERC721_TOKEN_ID = (() => {
   switch (configs.network) {
     case Network.Mumbai:
       return 163012;
+    case Network.BscTestnet:
+      return 1;
     case Network.Rinkeby:
     default:
       return 18884;
   }
 })();
 
-export const WETH_ADDRESS = (() => {
+export const ERC20_TOKEN_ADDRESS = (() => {
   switch (configs.network) {
     case Network.Mumbai:
       return '0xA6FA4fB5f76172d178d61B04b0ecd319C5d1C0aa';
+    case Network.BscTestnet:
+      return '0xd66c6B4F0be8CE5b39D52E0Fd1344c389929B378';
     case Network.Rinkeby:
     default:
       return '0xc778417E063141139Fce010982780140Aa0cD5Ab';
   }
 })();
 
-export const WETH_DECIMAL = 18;
+export const ERC20_TOKEN_DECIMAL = 18;
 
 export const provider = (() => {
   switch (configs.network) {
@@ -42,6 +57,14 @@ export const provider = (() => {
       return new ethers.providers.JsonRpcProvider(
         `https://polygon-mumbai.infura.io/v3/${configs.infura.projectId}`,
         'maticmum'
+      );
+    case Network.BscTestnet:
+      return new ethers.providers.JsonRpcProvider(
+        `https://data-seed-prebsc-1-s1.binance.org:8545`,
+        {
+          name: 'bsctestnet',
+          chainId: 97
+        }
       );
     case Network.Rinkeby:
     default:
@@ -52,12 +75,12 @@ export const provider = (() => {
   }
 })();
 
-export const sandboxLandAbi = ERC721Abi__factory.connect(
+export const erc721Abi = ERC721Abi__factory.connect(
   ERC721_ADDRESS,
   provider
 );
 
-export const wethAbi = ERC20Abi__factory.connect(WETH_ADDRESS, provider);
+export const erc20Abi = ERC20Abi__factory.connect(ERC20_TOKEN_ADDRESS, provider);
 
 export const Alice: Account = {
   address: '0xB6Ec64c617f0C4BFb886eE993d80C6234673e845',

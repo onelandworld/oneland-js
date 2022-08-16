@@ -7,9 +7,21 @@ const getEnv = (value: string, defaultValue: any): any => {
   return process.env[value] || defaultValue;
 };
 
+const getNetwork = (): Network => {
+  const network = getEnv('NETWORK', '');
+  switch(network) {
+    case 'mumbai':
+      return Network.Mumbai;
+    case 'bsctestnet':
+      return Network.BscTestnet;
+    case 'rinkeby':
+    default:
+      return Network.Rinkeby;
+  }
+}
+
 export const configs = {
-  network:
-    getEnv('NETWORK', '') === 'mumbai' ? Network.Mumbai : Network.Rinkeby,
+  network: getNetwork(),
   accounts: {
     aliceSecret: getEnv('ALICE_SECRET', ''),
     bobSecret: getEnv('BOB_SECRET', ''),

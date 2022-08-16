@@ -130,6 +130,15 @@ export class OneLandAPI {
               address: '0xa6fa4fb5f76172d178d61b04b0ecd319c5d1c0aa',
             },
           ];
+        case Network.BscTestnet:
+          return [
+            {
+              name: 'Ether',
+              symbol: 'ETH',
+              decimals: 18,
+              address: '0xd66c6b4f0be8ce5b39d52e0fd1344c389929b378',
+            },
+          ];
         case Network.Rinkeby:
         default:
           return [

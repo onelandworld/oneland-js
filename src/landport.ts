@@ -236,7 +236,7 @@ export class LandPort {
     onStep?: (step: number) => void;
   }) {
     if (!paymentTokenAddress || paymentTokenAddress === NULL_ADDRESS) {
-      throw new Error('Trading with ETH is not supported');
+      throw new Error('Trading with native ether is not supported');
     }
     let step = 0;
     function nextStep<T>(param?: T) {
@@ -663,6 +663,8 @@ export class LandPort {
           return 4;
         case Network.Mumbai:
           return 80001;
+        case Network.BscTestnet:
+          return 97;
         case Network.Main:
         default:
           return 1;
